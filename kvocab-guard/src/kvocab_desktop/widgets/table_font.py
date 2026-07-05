@@ -20,6 +20,7 @@ def resolve_point_size(widget: QWidget) -> int:
 def app_default_font(family: str = "Malgun Gothic") -> QFont:
     font = QFont(family, DEFAULT_APP_POINT_SIZE)
     font.setStyleHint(QFont.StyleHint.SansSerif)
+    font.setHintingPreference(QFont.HintingPreference.PreferFullHinting)
     return font
 
 

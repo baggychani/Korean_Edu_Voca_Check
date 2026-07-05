@@ -20,6 +20,12 @@ LEVEL_ORDER: dict[str, int] = {
 }
 
 LEVEL_META: dict[str, dict[str, str | int]] = {
+    "1A": {
+        "series": "서울대 한국어",
+        "title_ko": "서울대 한국어 1A",
+        "title_en": "SNU Korean 1A",
+        "sort_order": 1,
+    },
     "2A": {
         "series": "서울대 한국어",
         "title_ko": "서울대 한국어 2A",
@@ -37,6 +43,18 @@ LEVEL_META: dict[str, dict[str, str | int]] = {
         "title_ko": "서울대 한국어 3A",
         "title_en": "SNU Korean 3A",
         "sort_order": 5,
+    },
+    "3B": {
+        "series": "서울대 한국어",
+        "title_ko": "서울대 한국어 3B",
+        "title_en": "SNU Korean 3B",
+        "sort_order": 6,
+    },
+    "4A": {
+        "series": "서울대 한국어",
+        "title_ko": "서울대 한국어 4A",
+        "title_en": "SNU Korean 4A",
+        "sort_order": 7,
     },
 }
 

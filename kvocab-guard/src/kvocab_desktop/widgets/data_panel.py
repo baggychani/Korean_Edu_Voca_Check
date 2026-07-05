@@ -38,6 +38,7 @@ def _stat_card(label: str) -> tuple[QFrame, QLabel]:
     value.setObjectName("statValue")
     caption = QLabel(label)
     caption.setObjectName("statLabel")
+    caption.setWordWrap(True)
     lay.addWidget(value)
     lay.addWidget(caption)
     return card, value
@@ -47,10 +48,17 @@ class DataPanel(QWidget):
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 16, 0, 0)
-        layout.setSpacing(12)
+        layout.setContentsMargins(0, 12, 0, 0)
+        layout.setSpacing(16)
 
-        btn_row = QHBoxLayout()
+        title = QLabel("데이터베이스")
+        title.setObjectName("sectionTitle")
+        layout.addWidget(title)
+
+        btn_card = QFrame()
+        btn_card.setObjectName("card")
+        btn_row = QHBoxLayout(btn_card)
+        btn_row.setContentsMargins(16, 14, 16, 14)
         btn_row.setSpacing(8)
         self.seed_btn = QPushButton("DB 초기화 및 seed 불러오기")
         self.seed_btn.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -64,7 +72,7 @@ class DataPanel(QWidget):
         btn_row.addWidget(self.import_btn)
         btn_row.addWidget(self.open_btn)
         btn_row.addStretch()
-        layout.addLayout(btn_row)
+        layout.addWidget(btn_card)
 
         self._value_labels: dict[str, QLabel] = {}
         grid = QGridLayout()

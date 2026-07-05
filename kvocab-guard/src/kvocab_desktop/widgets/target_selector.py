@@ -18,6 +18,18 @@ _STRICTNESS_LABELS = [
 ]
 
 
+def _section(text: str) -> QLabel:
+    lbl = QLabel(text)
+    lbl.setObjectName("sidebarSection")
+    return lbl
+
+
+def _field_label(text: str) -> QLabel:
+    lbl = QLabel(text)
+    lbl.setObjectName("sidebarFieldLabel")
+    return lbl
+
+
 class TargetSelector(QWidget):
     changed = Signal()
 
@@ -27,7 +39,7 @@ class TargetSelector(QWidget):
         self.setAutoFillBackground(False)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(6)
+        layout.setSpacing(0)
 
         self.level_combo = QComboBox()
         self.lesson_combo = QComboBox()
@@ -43,20 +55,17 @@ class TargetSelector(QWidget):
         self.debug_cb.setChecked(False)
         self.debug_cb.setAutoFillBackground(False)
 
-        def section(text: str) -> QLabel:
-            lbl = QLabel(text)
-            lbl.setObjectName("sidebarSection")
-            return lbl
-
-        layout.addWidget(section("목표"))
-        layout.addWidget(QLabel("레벨"))
+        layout.addWidget(_section("목표"))
+        layout.addWidget(_field_label("레벨"))
         layout.addWidget(self.level_combo)
-        layout.addWidget(QLabel("단원"))
+        layout.addSpacing(10)
+        layout.addWidget(_field_label("단원"))
         layout.addWidget(self.lesson_combo)
-        layout.addWidget(section("검사 설정"))
-        layout.addWidget(QLabel("엄격도"))
+
+        layout.addWidget(_section("검사 설정"))
+        layout.addWidget(_field_label("엄격도"))
         layout.addWidget(self.strictness_combo)
-        layout.addSpacing(6)
+        layout.addSpacing(12)
         layout.addWidget(self.morph_cb)
         layout.addWidget(self.debug_cb)
 

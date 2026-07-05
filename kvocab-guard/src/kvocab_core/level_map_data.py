@@ -2,6 +2,25 @@
 
 from __future__ import annotations
 
+SNU_1A_LESSONS: list[dict] = [
+    {"lesson": "1-1", "unit_no": 1, "lesson_no": 1, "unit_topic": "인사", "unit_title": "저는 이유진이에요", "page_start": 22, "page_end": 27},
+    {"lesson": "1-2", "unit_no": 1, "lesson_no": 2, "unit_topic": "인사", "unit_title": "유진 씨는 학생이에요?", "page_start": 28, "page_end": 37},
+    {"lesson": "2-1", "unit_no": 2, "lesson_no": 1, "unit_topic": "교실과 방", "unit_title": "이거는 시계예요", "page_start": 38, "page_end": 43},
+    {"lesson": "2-2", "unit_no": 2, "lesson_no": 2, "unit_topic": "교실과 방", "unit_title": "이 가방은 나나 씨 가방이에요", "page_start": 44, "page_end": 53},
+    {"lesson": "3-1", "unit_no": 3, "lesson_no": 1, "unit_topic": "가게", "unit_title": "이 빵 하나 주세요", "page_start": 54, "page_end": 59},
+    {"lesson": "3-2", "unit_no": 3, "lesson_no": 2, "unit_topic": "가게", "unit_title": "집 앞에 편의점이 있어요", "page_start": 60, "page_end": 69},
+    {"lesson": "4-1", "unit_no": 4, "lesson_no": 1, "unit_topic": "일상생활", "unit_title": "저는 한국어를 공부해요", "page_start": 70, "page_end": 75},
+    {"lesson": "4-2", "unit_no": 4, "lesson_no": 2, "unit_topic": "일상생활", "unit_title": "오늘 회사에 가요", "page_start": 76, "page_end": 85},
+    {"lesson": "5-1", "unit_no": 5, "lesson_no": 1, "unit_topic": "식당", "unit_title": "비빔밥하고 불고기가 맛있어요", "page_start": 86, "page_end": 91},
+    {"lesson": "5-2", "unit_no": 5, "lesson_no": 2, "unit_topic": "식당", "unit_title": "주스 세 병이 오천 원이에요", "page_start": 92, "page_end": 101},
+    {"lesson": "6-1", "unit_no": 6, "lesson_no": 1, "unit_topic": "날짜와 요일", "unit_title": "토요일에 친구를 만나요", "page_start": 102, "page_end": 107},
+    {"lesson": "6-2", "unit_no": 6, "lesson_no": 2, "unit_topic": "날짜와 요일", "unit_title": "친구들하고 밥을 먹을 거예요", "page_start": 108, "page_end": 117},
+    {"lesson": "7-1", "unit_no": 7, "lesson_no": 1, "unit_topic": "시간", "unit_title": "보통 몇 시에 일어나요?", "page_start": 118, "page_end": 123},
+    {"lesson": "7-2", "unit_no": 7, "lesson_no": 2, "unit_topic": "시간", "unit_title": "어제 한강공원에 갔어요", "page_start": 124, "page_end": 133},
+    {"lesson": "8-1", "unit_no": 8, "lesson_no": 1, "unit_topic": "날씨", "unit_title": "오늘 날씨가 어때요?", "page_start": 134, "page_end": 139},
+    {"lesson": "8-2", "unit_no": 8, "lesson_no": 2, "unit_topic": "날씨", "unit_title": "토요일에는 비가 오고 조금 추워요", "page_start": 140, "page_end": 148},
+]
+
 SNU_2A_LESSONS: list[dict] = [
     {"lesson": "1-1", "unit_no": 1, "lesson_no": 1, "unit_topic": "소개", "unit_title": "한국어를 배우려고 한국에 왔어요", "page_start": 22, "page_end": 27},
     {"lesson": "1-2", "unit_no": 1, "lesson_no": 2, "unit_topic": "소개", "unit_title": "제 고향은 춘천인데 닭갈비가 유명합니다", "page_start": 28, "page_end": 37},
@@ -67,8 +86,52 @@ SNU_3A_LESSONS: list[dict] = [
     {"lesson": "9-2", "unit_no": 9, "lesson_no": 2, "unit_topic": "사건과 사고", "unit_title": "분실", "page_start": 158, "page_end": 166},
 ]
 
+SNU_3B_LESSONS: list[dict] = [
+    {"lesson": "10-1", "unit_no": 10, "lesson_no": 1, "unit_topic": "고장과 수리", "unit_title": "고장 상황", "page_start": 24, "page_end": 29},
+    {"lesson": "10-2", "unit_no": 10, "lesson_no": 2, "unit_topic": "고장과 수리", "unit_title": "수리 요청", "page_start": 30, "page_end": 39},
+    {"lesson": "11-1", "unit_no": 11, "lesson_no": 1, "unit_topic": "실수와 고민", "unit_title": "실수와 후회", "page_start": 40, "page_end": 45},
+    {"lesson": "11-2", "unit_no": 11, "lesson_no": 2, "unit_topic": "실수와 고민", "unit_title": "고민과 조언", "page_start": 46, "page_end": 55},
+    {"lesson": "12-1", "unit_no": 12, "lesson_no": 1, "unit_topic": "습관의 중요성", "unit_title": "습관과 버릇", "page_start": 56, "page_end": 61},
+    {"lesson": "12-2", "unit_no": 12, "lesson_no": 2, "unit_topic": "습관의 중요성", "unit_title": "계획과 실천", "page_start": 62, "page_end": 71},
+    {"lesson": "13-1", "unit_no": 13, "lesson_no": 1, "unit_topic": "연애와 결혼", "unit_title": "연애의 조건", "page_start": 72, "page_end": 77},
+    {"lesson": "13-2", "unit_no": 13, "lesson_no": 2, "unit_topic": "연애와 결혼", "unit_title": "사랑 이야기", "page_start": 78, "page_end": 87},
+    {"lesson": "14-1", "unit_no": 14, "lesson_no": 1, "unit_topic": "고향의 어제와 오늘", "unit_title": "도시와 시골", "page_start": 88, "page_end": 93},
+    {"lesson": "14-2", "unit_no": 14, "lesson_no": 2, "unit_topic": "고향의 어제와 오늘", "unit_title": "현재와 미래", "page_start": 94, "page_end": 103},
+    {"lesson": "15-1", "unit_no": 15, "lesson_no": 1, "unit_topic": "건강한 몸과 마음", "unit_title": "튼튼한 몸", "page_start": 104, "page_end": 109},
+    {"lesson": "15-2", "unit_no": 15, "lesson_no": 2, "unit_topic": "건강한 몸과 마음", "unit_title": "건강한 마음", "page_start": 110, "page_end": 119},
+    {"lesson": "16-1", "unit_no": 16, "lesson_no": 1, "unit_topic": "일과 직업", "unit_title": "아르바이트", "page_start": 120, "page_end": 125},
+    {"lesson": "16-2", "unit_no": 16, "lesson_no": 2, "unit_topic": "일과 직업", "unit_title": "일하고 싶은 곳", "page_start": 126, "page_end": 135},
+    {"lesson": "17-1", "unit_no": 17, "lesson_no": 1, "unit_topic": "특별한 날", "unit_title": "기념일", "page_start": 136, "page_end": 141},
+    {"lesson": "17-2", "unit_no": 17, "lesson_no": 2, "unit_topic": "특별한 날", "unit_title": "소중한 기억", "page_start": 142, "page_end": 151},
+    {"lesson": "18-1", "unit_no": 18, "lesson_no": 1, "unit_topic": "연극", "unit_title": "흥부와 놀부", "page_start": 152, "page_end": 162},
+]
+
+SNU_4A_LESSONS: list[dict] = [
+    {"lesson": "1-1", "unit_no": 1, "lesson_no": 1, "unit_topic": "진로와 적성", "unit_title": "진로", "page_start": 24, "page_end": 29},
+    {"lesson": "1-2", "unit_no": 1, "lesson_no": 2, "unit_topic": "진로와 적성", "unit_title": "능력과 자질", "page_start": 30, "page_end": 39},
+    {"lesson": "2-1", "unit_no": 2, "lesson_no": 1, "unit_topic": "건강한 삶", "unit_title": "질병과 증상", "page_start": 40, "page_end": 45},
+    {"lesson": "2-2", "unit_no": 2, "lesson_no": 2, "unit_topic": "건강한 삶", "unit_title": "건강한 습관", "page_start": 46, "page_end": 55},
+    {"lesson": "3-1", "unit_no": 3, "lesson_no": 1, "unit_topic": "선택과 변화", "unit_title": "만족과 후회", "page_start": 56, "page_end": 61},
+    {"lesson": "3-2", "unit_no": 3, "lesson_no": 2, "unit_topic": "선택과 변화", "unit_title": "사회 변화", "page_start": 62, "page_end": 71},
+    {"lesson": "4-1", "unit_no": 4, "lesson_no": 1, "unit_topic": "기후와 문화", "unit_title": "날씨와 기후", "page_start": 72, "page_end": 77},
+    {"lesson": "4-2", "unit_no": 4, "lesson_no": 2, "unit_topic": "기후와 문화", "unit_title": "기후와 문화의 특징", "page_start": 78, "page_end": 87},
+    {"lesson": "5-1", "unit_no": 5, "lesson_no": 1, "unit_topic": "여행의 즐거움", "unit_title": "아름다운 풍경", "page_start": 88, "page_end": 93},
+    {"lesson": "5-2", "unit_no": 5, "lesson_no": 2, "unit_topic": "여행의 즐거움", "unit_title": "여행의 기쁨", "page_start": 94, "page_end": 103},
+    {"lesson": "6-1", "unit_no": 6, "lesson_no": 1, "unit_topic": "공연과 축제", "unit_title": "함께 즐기는 축제", "page_start": 104, "page_end": 109},
+    {"lesson": "6-2", "unit_no": 6, "lesson_no": 2, "unit_topic": "공연과 축제", "unit_title": "감상과 평가", "page_start": 110, "page_end": 119},
+    {"lesson": "7-1", "unit_no": 7, "lesson_no": 1, "unit_topic": "숫자로 보는 세상", "unit_title": "조사 결과", "page_start": 120, "page_end": 125},
+    {"lesson": "7-2", "unit_no": 7, "lesson_no": 2, "unit_topic": "숫자로 보는 세상", "unit_title": "통계와 그래프", "page_start": 126, "page_end": 135},
+    {"lesson": "8-1", "unit_no": 8, "lesson_no": 1, "unit_topic": "대중문화", "unit_title": "스타와 대중문화", "page_start": 136, "page_end": 141},
+    {"lesson": "8-2", "unit_no": 8, "lesson_no": 2, "unit_topic": "대중문화", "unit_title": "대중문화의 영향", "page_start": 142, "page_end": 151},
+    {"lesson": "9-1", "unit_no": 9, "lesson_no": 1, "unit_topic": "스포츠의 세계", "unit_title": "흥미진진한 경기", "page_start": 152, "page_end": 157},
+    {"lesson": "9-2", "unit_no": 9, "lesson_no": 2, "unit_topic": "스포츠의 세계", "unit_title": "경기와 규칙", "page_start": 158, "page_end": 166},
+]
+
 LEVEL_LESSONS: dict[str, list[dict]] = {
+    "1A": SNU_1A_LESSONS,
     "2A": SNU_2A_LESSONS,
     "2B": SNU_2B_LESSONS,
     "3A": SNU_3A_LESSONS,
+    "3B": SNU_3B_LESSONS,
+    "4A": SNU_4A_LESSONS,
 }

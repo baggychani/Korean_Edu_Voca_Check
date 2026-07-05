@@ -17,9 +17,6 @@ __pycache__/
 # Full textbook PDFs (large scans; glossary images stay in Word/)
 textbooks/
 
-# Temp
-kvocab-guard/_2b_pages/
-
 # OS
 .DS_Store
 Thumbs.db

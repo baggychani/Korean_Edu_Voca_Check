@@ -266,7 +266,6 @@ class Analyzer:
                     )
                 )
 
-        issues = _suppress_noun_with_nearby_verb(issues)
 
         visible = [
             i

@@ -4,9 +4,11 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QComboBox,
+    QFrame,
     QHBoxLayout,
     QHeaderView,
     QLineEdit,
+    QLabel,
     QPushButton,
     QTableWidget,
     QTableWidgetItem,
@@ -25,10 +27,17 @@ class AllowlistPanel(QWidget):
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 16, 0, 0)
-        layout.setSpacing(12)
+        layout.setContentsMargins(0, 12, 0, 0)
+        layout.setSpacing(16)
 
-        form = QHBoxLayout()
+        title = QLabel("허용어 관리")
+        title.setObjectName("sectionTitle")
+        layout.addWidget(title)
+
+        form_card = QFrame()
+        form_card.setObjectName("card")
+        form = QHBoxLayout(form_card)
+        form.setContentsMargins(16, 14, 16, 14)
         form.setSpacing(8)
         self.text_input = QLineEdit()
         self.text_input.setPlaceholderText("허용할 표현")
@@ -47,7 +56,7 @@ class AllowlistPanel(QWidget):
         form.addWidget(self.note_input, 2)
         form.addWidget(self.add_btn)
         form.addWidget(self.del_btn)
-        layout.addLayout(form)
+        layout.addWidget(form_card)
 
         self.table = QTableWidget(0, 4)
         self.table.setHorizontalHeaderLabels(["텍스트", "유형", "메모", "ID"])

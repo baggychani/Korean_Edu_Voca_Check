@@ -70,18 +70,25 @@ def test_nnp_not_in_default_issues(analyzer):
 
 def test_no_substring_bang_hak(analyzer):
     with analyzer() as session:
-        session.add(
-            Lexeme(
-                lemma="방",
-                normalized_lemma="방",
-                gloss_en="room",
-                review_status="approved",
-                first_level="2A",
-                first_lesson="1-1",
-                first_page=22,
-                first_order_index=201011,
+        lex = session.query(Lexeme).filter(Lexeme.normalized_lemma == "방").one_or_none()
+        if lex:
+            lex.first_level = "2A"
+            lex.first_lesson = "1-1"
+            lex.first_page = 22
+            lex.first_order_index = 201011
+        else:
+            session.add(
+                Lexeme(
+                    lemma="방",
+                    normalized_lemma="방",
+                    gloss_en="room",
+                    review_status="approved",
+                    first_level="2A",
+                    first_lesson="1-1",
+                    first_page=22,
+                    first_order_index=201011,
+                )
             )
-        )
         session.commit()
     issues = _analyze(analyzer, "방학이 시작됐어요.", "9-2")
     before = [i for i in issues if i.surface == "방" and i.status == IssueStatus.before_introduced]

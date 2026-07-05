@@ -3,7 +3,9 @@ from __future__ import annotations
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QFileDialog,
+    QFrame,
     QHBoxLayout,
+    QLabel,
     QPushButton,
     QTextEdit,
     QVBoxLayout,
@@ -20,17 +22,38 @@ class AnalyzePanel(QWidget):
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(10)
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.setSpacing(0)
+
+        card = QFrame()
+        card.setObjectName("card")
+        layout = QVBoxLayout(card)
+        layout.setContentsMargins(20, 18, 20, 18)
+        layout.setSpacing(14)
+
+        header_row = QHBoxLayout()
+        header_row.setSpacing(8)
+        title = QLabel("텍스트 입력")
+        title.setObjectName("sectionTitle")
+        hint = QLabel("검사할 한국어 문장·지문을 붙여넣거나 파일을 여세요.")
+        hint.setObjectName("sectionHint")
+        header_row.addWidget(title)
+        header_row.addStretch()
+        header_row.addWidget(hint)
+        layout.addLayout(header_row)
 
         self.text_edit = QTextEdit()
+        self.text_edit.setObjectName("inputArea")
         self.text_edit.setPlaceholderText("검사할 한국어 텍스트를 붙여넣으세요…")
-        self.text_edit.setMinimumHeight(140)
-        self.text_edit.setMaximumHeight(220)
+        self.text_edit.setMinimumHeight(130)
+        self.text_edit.setMaximumHeight(200)
         layout.addWidget(self.text_edit)
 
-        btn_row = QHBoxLayout()
+        btn_wrap = QWidget()
+        btn_wrap.setObjectName("analyzeActions")
+        btn_row = QHBoxLayout(btn_wrap)
+        btn_row.setContentsMargins(0, 0, 0, 0)
         btn_row.setSpacing(8)
         self.run_btn = QPushButton("텍스트 검사")
         self.run_btn.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -44,7 +67,9 @@ class AnalyzePanel(QWidget):
         btn_row.addWidget(self.open_btn)
         btn_row.addWidget(self.clear_btn)
         btn_row.addStretch()
-        layout.addLayout(btn_row)
+        layout.addWidget(btn_wrap)
+
+        outer.addWidget(card)
 
         self.run_btn.clicked.connect(self.analyze_requested.emit)
         self.open_btn.clicked.connect(self._open_file)

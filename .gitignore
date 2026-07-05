@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+
+# Generated / local data
+*.db
+.env
+.env.*
+
+# IDE
+.vscode/
+
+# Large local reference materials (xlsx seed is sufficient for the app)
+Word/
+*.pdf
+
+# Temp
+kvocab-guard/_2b_pages/
+
+# OS
+.DS_Store
+Thumbs.db

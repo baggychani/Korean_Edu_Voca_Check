@@ -1,7 +1,11 @@
 """Check if the 2B PDF has a text layer at all."""
+from pathlib import Path
+
 import fitz
 
-PATH = r"C:\Users\c\Desktop\Korean_Voca_Check\서울대 한국어 2B.pdf"
+from kvocab_core.config import TEXTBOOKS_DIR
+
+PATH = TEXTBOOKS_DIR / "서울대 한국어 2B.pdf"
 
 doc = fitz.open(PATH)
 print("pages:", len(doc))

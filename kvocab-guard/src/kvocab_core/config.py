@@ -41,6 +41,10 @@ LEVEL_META: dict[str, dict[str, str | int]] = {
 }
 
 PACKAGE_ROOT = Path(__file__).resolve().parent.parent.parent
+REPO_ROOT = PACKAGE_ROOT.parent
+VOCABULARY_DIR = REPO_ROOT / "vocabulary"
+TEXTBOOKS_DIR = REPO_ROOT / "textbooks"
+WORD_DIR = REPO_ROOT / "Word"
 DEFAULT_DATA_DIR = Path(os.environ.get("KVOCAB_DATA_DIR", PACKAGE_ROOT / "data"))
 DEFAULT_DB_PATH = DEFAULT_DATA_DIR / "kvocab.db"
 

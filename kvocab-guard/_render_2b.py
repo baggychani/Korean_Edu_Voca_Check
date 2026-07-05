@@ -4,8 +4,10 @@ from pathlib import Path
 
 import fitz
 
-PATH = r"C:\Users\c\Desktop\Korean_Voca_Check\서울대 한국어 2B.pdf"
-OUT = Path(r"C:\Users\c\Desktop\Korean_Voca_Check\kvocab-guard\_2b_pages")
+from kvocab_core.config import TEXTBOOKS_DIR
+
+PATH = TEXTBOOKS_DIR / "서울대 한국어 2B.pdf"
+OUT = Path(__file__).resolve().parent / "_2b_pages"
 OUT.mkdir(exist_ok=True)
 
 pages = [int(a) for a in sys.argv[1:]]

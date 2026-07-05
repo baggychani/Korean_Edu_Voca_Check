@@ -6,14 +6,12 @@ from pathlib import Path
 
 import openpyxl
 
-from kvocab_core.config import compute_order_index
+from kvocab_core.config import VOCABULARY_DIR, compute_order_index
 
 ROOT = Path(__file__).resolve().parents[3]
 PATHS = [
     ROOT / "data" / "seed" / "vocabulary_database.xlsx",
-    ROOT.parent / "snu2a_level_mapped_vocabulary.xlsx",
-    ROOT.parent / "snu2b_level_mapped_vocabulary.xlsx",
-    ROOT.parent / "snu3a_level_mapped_vocabulary.xlsx",
+    *sorted(VOCABULARY_DIR.glob("snu*_level_mapped_vocabulary.xlsx")),
 ]
 
 

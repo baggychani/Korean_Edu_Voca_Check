@@ -91,6 +91,10 @@ class DictionaryPanel(QWidget):
         if self._search_callback:
             self._search_callback(self.search_input.text().strip())
 
+    def search_for(self, query: str) -> None:
+        self.search_input.setText(query)
+        self.search_requested()
+
     def show_results(self, results: list[LexemeSearchResult]) -> None:
         self._results = results
         self.table.setRowCount(len(results))

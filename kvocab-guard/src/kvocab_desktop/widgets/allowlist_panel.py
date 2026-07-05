@@ -72,6 +72,13 @@ class AllowlistPanel(QWidget):
         self.table.setColumnHidden(3, True)
         layout.addWidget(self.table, stretch=1)
 
+        hint = QLabel(
+            "허용 목록에 넣은 표현은 목표 단원과 관계없이 모든 검사에서 경고하지 않습니다."
+        )
+        hint.setObjectName("sectionHint")
+        hint.setWordWrap(True)
+        layout.addWidget(hint)
+
         self._add_cb = None
         self._delete_cb = None
         self.add_btn.clicked.connect(self._add)

@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (
 )
 
 from kvocab_core.document_extractors import extract_document
+from kvocab_desktop.style import STATUS_COLORS
 
 
 class AnalyzePanel(QWidget):
@@ -72,23 +73,71 @@ class AnalyzePanel(QWidget):
 
         outer.addWidget(card)
 
+        self._red_selections: list[QTextEdit.ExtraSelection] = []
+        self._sentence_selection: QTextEdit.ExtraSelection | None = None
+
         self.run_btn.clicked.connect(self.analyze_requested.emit)
         self.open_btn.clicked.connect(self._open_file)
         self.clear_btn.clicked.connect(self._clear)
-        self.text_edit.textChanged.connect(self.clear_highlight)
+        self.text_edit.textChanged.connect(self.clear_marks)
 
     def get_text(self) -> str:
         return self.text_edit.toPlainText()
 
     def set_text(self, text: str) -> None:
         self.text_edit.setPlainText(text)
-        self.clear_highlight()
+        self.clear_marks()
+
+    def _apply_extra_selections(self) -> None:
+        # 노란 문장 배경 먼저, 빨간 글자를 위에 올려 겹침 구간도 색 유지
+        selections: list[QTextEdit.ExtraSelection] = []
+        if self._sentence_selection is not None:
+            selections.append(self._sentence_selection)
+        selections.extend(self._red_selections)
+        self.text_edit.setExtraSelections(selections)
 
     def clear_highlight(self) -> None:
+        self._sentence_selection = None
+        self._apply_extra_selections()
+
+    def clear_before_introduced_marks(self) -> None:
+        self._red_selections = []
+
+    def clear_marks(self) -> None:
+        self._red_selections = []
+        self._sentence_selection = None
         self.text_edit.setExtraSelections([])
 
+    def apply_before_introduced_marks(self, issues) -> None:
+        from kvocab_core.schemas import IssueStatus
+
+        self._red_selections = []
+        text = self.get_text()
+        if not text:
+            self._apply_extra_selections()
+            return
+
+        fmt = QTextCharFormat()
+        fmt.setForeground(QColor(STATUS_COLORS["before_introduced"]))
+        doc = self.text_edit.document()
+        for issue in issues:
+            if issue.status != IssueStatus.before_introduced:
+                continue
+            span = self._surface_span(text, issue)
+            if not span:
+                continue
+            start, end = span
+            cursor = QTextCursor(doc)
+            cursor.setPosition(start)
+            cursor.setPosition(end, QTextCursor.MoveMode.KeepAnchor)
+            sel = QTextEdit.ExtraSelection()
+            sel.cursor = cursor
+            sel.format = fmt
+            self._red_selections.append(sel)
+        self._apply_extra_selections()
+
     def highlight_issue(self, issue) -> None:
-        """입력창에서 해당 이슈의 문장 구간을 하이라이트한다."""
+        """입력창에서 해당 이슈 문장 구간을 노란 배경으로 표시한다."""
         text = self.get_text()
         span = self._sentence_span(text, issue)
         if not span:
@@ -100,17 +149,46 @@ class AnalyzePanel(QWidget):
         hl.setPosition(end, QTextCursor.MoveMode.KeepAnchor)
         fmt = QTextCharFormat()
         fmt.setBackground(QColor("#fff176"))
-        fmt.setForeground(QColor("#111827"))
+        fmt.clearForeground()
         selection = QTextEdit.ExtraSelection()
         selection.cursor = hl
         selection.format = fmt
-        self.text_edit.setExtraSelections([selection])
+        self._sentence_selection = selection
+        self._apply_extra_selections()
 
         view = self.text_edit.textCursor()
         view.setPosition(start)
         view.clearSelection()
         self.text_edit.setTextCursor(view)
         self.text_edit.ensureCursorVisible()
+
+    @staticmethod
+    def _surface_span(text: str, issue) -> tuple[int, int] | None:
+        """표현(어절) 단위 구간 — issue.surface 기준."""
+        surface = (issue.surface or "").strip()
+        if not surface:
+            if 0 <= issue.start < issue.end <= len(text):
+                return issue.start, issue.end
+            return None
+
+        search_from = max(0, issue.start - len(surface))
+        pos = search_from
+        while True:
+            idx = text.find(surface, pos)
+            if idx < 0:
+                break
+            end = idx + len(surface)
+            if idx <= issue.start < end:
+                return idx, end
+            pos = idx + 1
+
+        idx = text.find(surface)
+        if idx >= 0:
+            return idx, idx + len(surface)
+
+        if 0 <= issue.start < issue.end <= len(text):
+            return issue.start, issue.end
+        return None
 
     @staticmethod
     def _sentence_span(text: str, issue) -> tuple[int, int] | None:
@@ -143,7 +221,7 @@ class AnalyzePanel(QWidget):
 
     def _clear(self) -> None:
         self.text_edit.clear()
-        self.clear_highlight()
+        self.clear_marks()
         self.clear_requested.emit()
 
     def _open_file(self) -> None:

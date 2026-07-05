@@ -50,7 +50,7 @@ class AnalyzeWorker(QThread):
             self.failed.emit(str(exc))
 
 
-APP_TITLE = "한국어교육 단어 검사기"
+APP_TITLE = "한국어교육 단어 검사기 1.0.0"
 
 
 class MainWindow(QMainWindow):
@@ -147,7 +147,9 @@ class MainWindow(QMainWindow):
         self.results_panel.sentence_highlight_requested.connect(
             self.analyze_panel.highlight_issue
         )
+        self.results_panel.issue_selected.connect(self.analyze_panel.highlight_issue)
         self.results_panel.allow_requested.connect(self._add_allow)
+        self.results_panel.lemma_lookup_requested.connect(self._lookup_lemma_in_dictionary)
         self.dict_panel.set_search_callback(self._run_dictionary_search)
         self.allow_panel.set_callbacks(None, self._add_allow_item, self._delete_allow_item)
         self.data_panel.set_callbacks(self._run_seed, self._run_import_xlsx)
@@ -190,14 +192,14 @@ class MainWindow(QMainWindow):
         )
 
     def _on_analyze_clear(self) -> None:
-        self.analyze_panel.clear_highlight()
+        self.analyze_panel.clear_marks()
         self.results_panel.clear()
 
     def _run_analyze(self) -> None:
         if not self.analyze_panel.get_text().strip():
             QMessageBox.warning(self, "입력 필요", "검사할 텍스트를 입력하세요.")
             return
-        self.analyze_panel.clear_highlight()
+        self.analyze_panel.clear_marks()
         self.analyze_panel.run_btn.setText("검사 중…")
         self.analyze_panel.run_btn.setEnabled(False)
         self._worker = AnalyzeWorker(self.session_factory, self._build_request())
@@ -209,6 +211,7 @@ class MainWindow(QMainWindow):
         self.analyze_panel.run_btn.setText("텍스트 검사")
         self.analyze_panel.run_btn.setEnabled(True)
         self.results_panel.show_result(result)
+        self.analyze_panel.apply_before_introduced_marks(result.issues)
 
     def _on_analyze_fail(self, msg: str) -> None:
         self.analyze_panel.run_btn.setText("텍스트 검사")
@@ -231,16 +234,57 @@ class MainWindow(QMainWindow):
                 )
         self.dict_panel.show_results(results)
 
+    def _lookup_lemma_in_dictionary(self, lemma: str) -> None:
+        lemma = lemma.strip()
+        if not lemma:
+            return
+        self.tabs.setCurrentWidget(self.dict_panel)
+        self.dict_panel.search_for(lemma)
+
     def _load_dictionary_default(self) -> None:
         self._run_dictionary_search("")
 
-    def _add_allow(self, text: str) -> None:
-        if not text.strip():
+    def _add_allow(self, lemma: str, surface: str, first_seen: str = "") -> None:
+        text = lemma.strip()
+        if not text:
             return
+
+        if surface and surface != text:
+            label = f"{surface}({text})"
+        else:
+            label = text
+
+        target = (
+            f"{self.target_selector.target_level} {self.target_selector.target_lesson}"
+        )
+        detail = ""
+        if first_seen:
+            detail = f"\n교재상 처음 등장: {first_seen}\n"
+        reply = QMessageBox.question(
+            self,
+            "허용 목록에 추가",
+            f"「{label}」의 원형 「{text}」을(를) 허용 목록에 추가합니다.{detail}\n"
+            f"현재 목표 단원({target})과 관계없이, "
+            "앞으로 모든 검사에서 이 원형은 경고하지 않습니다.\n\n"
+            "계속하시겠습니까?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+
+        note = f"추가 시 목표: {target}, 표현: {surface or text}"
+        if first_seen:
+            note += f", 교재 등장: {first_seen}"
         with self.session_factory() as session:
-            add_allowlist_item(session, text)
+            add_allowlist_item(session, text, note=note)
         self._refresh_allowlist()
-        QMessageBox.information(self, "허용 목록", f"「{text}」을(를) 허용 목록에 추가했습니다.")
+        QMessageBox.information(
+            self,
+            "허용 목록",
+            f"원형 「{text}」을(를) 허용 목록에 추가했습니다.\n"
+            "목표 단원을 바꿔도 이 원형은 경고하지 않습니다.",
+        )
 
     def _add_allow_item(self, text: str, allow_type: str, note: str | None) -> None:
         if not text:

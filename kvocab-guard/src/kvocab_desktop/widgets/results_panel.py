@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from PySide6.QtCore import QEvent, Qt, Signal
-from PySide6.QtGui import QColor, QFontMetrics
+from PySide6.QtGui import QColor, QFontMetrics, QPalette
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QFrame,
@@ -9,6 +9,8 @@ from PySide6.QtWidgets import (
     QHeaderView,
     QLabel,
     QPushButton,
+    QStyledItemDelegate,
+    QStyleOptionViewItem,
     QTableWidget,
     QTableWidgetItem,
     QVBoxLayout,
@@ -118,6 +120,23 @@ def _sentence_display(table: QTableWidget, text: str) -> tuple[str, bool]:
     return elided, elided != text
 
 
+class _VerdictItemDelegate(QStyledItemDelegate):
+    """행 선택 시에도 판정 열 글자색·배경색 유지."""
+
+    def paint(self, painter, option, index) -> None:
+        opt = QStyleOptionViewItem(option)
+        self.initStyleOption(opt, index)
+        fg = index.data(Qt.ItemDataRole.ForegroundRole)
+        bg = index.data(Qt.ItemDataRole.BackgroundRole)
+        if isinstance(fg, QColor):
+            opt.palette.setColor(QPalette.ColorRole.Text, fg)
+            opt.palette.setColor(QPalette.ColorRole.HighlightedText, fg)
+        if isinstance(bg, QColor):
+            opt.palette.setColor(QPalette.ColorRole.Base, bg)
+            opt.palette.setColor(QPalette.ColorRole.Highlight, bg)
+        super().paint(painter, opt, index)
+
+
 def _stat_card(label: str, accent: str = "#111827") -> tuple[QFrame, QLabel]:
     card = QFrame()
     card.setObjectName("statCard")
@@ -135,10 +154,17 @@ def _stat_card(label: str, accent: str = "#111827") -> tuple[QFrame, QLabel]:
     return card, value
 
 
+def _selection_display(issue: Issue) -> str:
+    if issue.lemma and issue.lemma != issue.surface:
+        return f"{issue.surface}({issue.lemma})"
+    return issue.surface
+
+
 class ResultsPanel(QWidget):
     issue_selected = Signal(object)
-    allow_requested = Signal(str)
+    allow_requested = Signal(str, str, str)  # lemma, surface, first_seen
     sentence_highlight_requested = Signal(object)
+    lemma_lookup_requested = Signal(str)
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
@@ -212,11 +238,13 @@ class ResultsPanel(QWidget):
         self.table.setFont(app_default_font())
         self.table.setWordWrap(False)
         self.table.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.table.setItemDelegateForColumn(_COL_VERDICT, _VerdictItemDelegate(self.table))
         _apply_flex_column_widths(self.table)
         self.table.viewport().installEventFilter(self)
 
         self.table.itemSelectionChanged.connect(self._on_select)
         self.table.cellClicked.connect(self._on_cell_clicked)
+        self.table.cellDoubleClicked.connect(self._on_cell_double_clicked)
         table_section.addWidget(self.table, stretch=1)
         layout.addLayout(table_section, stretch=1)
         layout.addSpacing(12)
@@ -238,7 +266,11 @@ class ResultsPanel(QWidget):
         sel_layout.addLayout(sel_text_col, stretch=1)
         btn_col = QHBoxLayout()
         btn_col.setSpacing(8)
-        self.allow_btn = QPushButton("이번부터 항상 허용")
+        self.allow_btn = QPushButton("허용 목록에 추가")
+        self.allow_btn.setToolTip(
+            "선택한 표현의 원형을 허용 목록에 넣습니다. "
+            "목표 단원과 관계없이 이후 검사에서 경고하지 않습니다."
+        )
         self.allow_btn.setEnabled(False)
         self.copy_btn = QPushButton("복사")
         self.copy_btn.setProperty("variant", "secondary")
@@ -371,7 +403,7 @@ class ResultsPanel(QWidget):
 
         issue: Issue = items[0].data(Qt.ItemDataRole.UserRole)
         self._selected = issue
-        self.selected_label.setText(issue.surface)
+        self.selected_label.setText(_selection_display(issue))
         self.copy_btn.setEnabled(True)
         can_allow = issue.status.value not in ("allowed", "custom_allowed")
         self.allow_btn.setEnabled(can_allow)
@@ -387,15 +419,29 @@ class ResultsPanel(QWidget):
         if issue:
             self.sentence_highlight_requested.emit(issue)
 
+    def _on_cell_double_clicked(self, row: int, col: int) -> None:
+        if col != _COL_SURFACE:
+            return
+        item = self.table.item(row, col)
+        if not item:
+            return
+        issue: Issue | None = item.data(Qt.ItemDataRole.UserRole)
+        if issue and issue.lemma:
+            self.lemma_lookup_requested.emit(issue.lemma)
+
     def _allow(self) -> None:
         if self._selected:
-            self.allow_requested.emit(self._selected.surface)
+            self.allow_requested.emit(
+                self._selected.lemma,
+                self._selected.surface,
+                self._selected.first_seen_display or "",
+            )
 
     def _copy(self) -> None:
         if self._selected:
             from PySide6.QtWidgets import QApplication
 
-            QApplication.clipboard().setText(self._selected.surface)
+            QApplication.clipboard().setText(_selection_display(self._selected))
 
     def clear(self) -> None:
         self.show_result(None)

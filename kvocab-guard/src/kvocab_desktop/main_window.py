@@ -143,7 +143,10 @@ class MainWindow(QMainWindow):
 
     def _wire_events(self) -> None:
         self.analyze_panel.analyze_requested.connect(self._run_analyze)
-        self.analyze_panel.clear_requested.connect(self.results_panel.clear)
+        self.analyze_panel.clear_requested.connect(self._on_analyze_clear)
+        self.results_panel.sentence_highlight_requested.connect(
+            self.analyze_panel.highlight_issue
+        )
         self.results_panel.allow_requested.connect(self._add_allow)
         self.dict_panel.set_search_callback(self._run_dictionary_search)
         self.allow_panel.set_callbacks(None, self._add_allow_item, self._delete_allow_item)
@@ -186,10 +189,15 @@ class MainWindow(QMainWindow):
             show_debug_ignored=self.target_selector.show_debug,
         )
 
+    def _on_analyze_clear(self) -> None:
+        self.analyze_panel.clear_highlight()
+        self.results_panel.clear()
+
     def _run_analyze(self) -> None:
         if not self.analyze_panel.get_text().strip():
             QMessageBox.warning(self, "입력 필요", "검사할 텍스트를 입력하세요.")
             return
+        self.analyze_panel.clear_highlight()
         self.analyze_panel.run_btn.setText("검사 중…")
         self.analyze_panel.run_btn.setEnabled(False)
         self._worker = AnalyzeWorker(self.session_factory, self._build_request())

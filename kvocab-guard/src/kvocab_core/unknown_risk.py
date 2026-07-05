@@ -23,13 +23,39 @@ _SINO_SUFFIXES = (
     "구조",
 )
 
-_HARDCODED: dict[str, tuple[IssueStatus, list[str]]] = {
-    "정합적": (IssueStatus.unknown_high, ["잘 맞는", "앞뒤가 맞는"]),
-    "정합적인": (IssueStatus.unknown_high, ["잘 맞는", "앞뒤가 맞는"]),
-    "윤슬": (IssueStatus.unknown_high, ["물 위에 빛이 반짝이는 것"]),
-    "내재화": (IssueStatus.unknown_high, []),
-    "상호작용": (IssueStatus.unknown_medium, []),
+# 교재 밖에서 특히 주의할 대표 예시 (점수 대신 고정 판정)
+_HARDCODED: dict[str, tuple[IssueStatus, str, list[str]]] = {
+    "정합적": (IssueStatus.unknown_high, "학술·추상 어휘", ["잘 맞는", "앞뒤가 맞는"]),
+    "정합적인": (IssueStatus.unknown_high, "학술·추상 어휘", ["잘 맞는", "앞뒤가 맞는"]),
+    "윤슬": (IssueStatus.unknown_high, "시·문학적 어휘", ["물 위에 빛이 반짝이는 것"]),
+    "내재화": (IssueStatus.unknown_high, "학술·추상 어휘", []),
+    "상호작용": (IssueStatus.unknown_medium, "복합 명사", []),
 }
+
+_TIER_ORDER = (
+    IssueStatus.unknown_low,
+    IssueStatus.unknown_medium,
+    IssueStatus.unknown_high,
+)
+
+_SEVERITY = {
+    IssueStatus.unknown_low: Severity.low,
+    IssueStatus.unknown_medium: Severity.medium,
+    IssueStatus.unknown_high: Severity.high,
+}
+
+
+def _apply_strictness(status: IssueStatus, strictness: Strictness) -> IssueStatus:
+    idx = _TIER_ORDER.index(status)
+    if strictness == Strictness.strict and idx < len(_TIER_ORDER) - 1:
+        idx += 1
+    elif strictness == Strictness.loose and idx > 0:
+        idx -= 1
+    return _TIER_ORDER[idx]
+
+
+def _pack(status: IssueStatus, reason: str, suggestions: list[str] | None = None):
+    return status, _SEVERITY[status], reason, suggestions or []
 
 
 def classify_unknown(
@@ -39,31 +65,30 @@ def classify_unknown(
 ) -> tuple[IssueStatus, Severity, str, list[str]]:
     norm = normalize_key(token)
     if norm in _HARDCODED:
-        status, suggestions = _HARDCODED[norm]
-        if norm == "상호작용" and strictness == Strictness.strict:
-            status = IssueStatus.unknown_high
-        sev = Severity.high if status == IssueStatus.unknown_high else Severity.medium
-        return status, sev, "하드코딩 규칙", suggestions
-
-    score = 35
-    if any(s in token for s in _SINO_SUFFIXES):
-        score += 30
-    if count_korean_syllables(token) >= 4 and not token.endswith(("하다", "되다", "이다")):
-        score += 20
-    if token.endswith("하다"):
-        score += 15
-    if strictness == Strictness.strict:
-        score += 20
-    elif strictness == Strictness.loose:
-        score -= 20
+        status, reason, suggestions = _HARDCODED[norm]
+        status = _apply_strictness(status, strictness)
+        return _pack(status, reason, suggestions)
 
     if is_english(token) or is_number(token):
-        score -= 30
-    if is_very_short_common(token):
-        score -= 30
+        status = _apply_strictness(IssueStatus.unknown_low, strictness)
+        return _pack(status, "외래어·숫자")
 
-    if score >= 70:
-        return IssueStatus.unknown_high, Severity.high, f"위험 점수 {score}", []
-    if score >= 45:
-        return IssueStatus.unknown_medium, Severity.medium, f"위험 점수 {score}", []
-    return IssueStatus.unknown_low, Severity.low, f"위험 점수 {score}", []
+    if is_very_short_common(token):
+        status = _apply_strictness(IssueStatus.unknown_low, strictness)
+        return _pack(status, "흔한 짧은 표현")
+
+    if any(s in token for s in _SINO_SUFFIXES):
+        status = _apply_strictness(IssueStatus.unknown_high, strictness)
+        return _pack(status, "한자어·학술어 형태")
+
+    syllables = count_korean_syllables(token)
+    if syllables >= 4 and not token.endswith(("하다", "되다", "이다")):
+        status = _apply_strictness(IssueStatus.unknown_high, strictness)
+        return _pack(status, "긴 어휘")
+
+    if token.endswith("하다"):
+        status = _apply_strictness(IssueStatus.unknown_medium, strictness)
+        return _pack(status, "교재에 없는 동사")
+
+    status = _apply_strictness(IssueStatus.unknown_medium, strictness)
+    return _pack(status, "교재에 없는 어휘")

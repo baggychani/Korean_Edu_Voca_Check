@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QColor, QTextCharFormat, QTextCursor
 from PySide6.QtWidgets import (
     QFileDialog,
     QFrame,
@@ -46,8 +47,8 @@ class AnalyzePanel(QWidget):
         self.text_edit = QTextEdit()
         self.text_edit.setObjectName("inputArea")
         self.text_edit.setPlaceholderText("검사할 한국어 텍스트를 붙여넣으세요…")
-        self.text_edit.setMinimumHeight(130)
-        self.text_edit.setMaximumHeight(200)
+        self.text_edit.setMinimumHeight(117)
+        self.text_edit.setMaximumHeight(180)
         layout.addWidget(self.text_edit)
 
         btn_wrap = QWidget()
@@ -74,15 +75,75 @@ class AnalyzePanel(QWidget):
         self.run_btn.clicked.connect(self.analyze_requested.emit)
         self.open_btn.clicked.connect(self._open_file)
         self.clear_btn.clicked.connect(self._clear)
+        self.text_edit.textChanged.connect(self.clear_highlight)
 
     def get_text(self) -> str:
         return self.text_edit.toPlainText()
 
     def set_text(self, text: str) -> None:
         self.text_edit.setPlainText(text)
+        self.clear_highlight()
+
+    def clear_highlight(self) -> None:
+        self.text_edit.setExtraSelections([])
+
+    def highlight_issue(self, issue) -> None:
+        """입력창에서 해당 이슈의 문장 구간을 하이라이트한다."""
+        text = self.get_text()
+        span = self._sentence_span(text, issue)
+        if not span:
+            return
+        start, end = span
+
+        hl = QTextCursor(self.text_edit.document())
+        hl.setPosition(start)
+        hl.setPosition(end, QTextCursor.MoveMode.KeepAnchor)
+        fmt = QTextCharFormat()
+        fmt.setBackground(QColor("#fff176"))
+        fmt.setForeground(QColor("#111827"))
+        selection = QTextEdit.ExtraSelection()
+        selection.cursor = hl
+        selection.format = fmt
+        self.text_edit.setExtraSelections([selection])
+
+        view = self.text_edit.textCursor()
+        view.setPosition(start)
+        view.clearSelection()
+        self.text_edit.setTextCursor(view)
+        self.text_edit.ensureCursorVisible()
+
+    @staticmethod
+    def _sentence_span(text: str, issue) -> tuple[int, int] | None:
+        sent = (issue.sentence or "").strip()
+        if sent:
+            pos = 0
+            fallback: tuple[int, int] | None = None
+            while True:
+                idx = text.find(sent, pos)
+                if idx < 0:
+                    break
+                span = (idx, idx + len(sent))
+                if 0 <= issue.start < issue.end and idx <= issue.start < idx + len(sent):
+                    return span
+                fallback = fallback or span
+                pos = idx + 1
+            if fallback:
+                return fallback
+        if issue.start < 0 or issue.end <= issue.start or issue.end > len(text):
+            return None
+        left = max(text.rfind(ch, 0, issue.start) for ch in ".?!\n")
+        right_candidates = [text.find(ch, issue.end) for ch in ".?!\n"]
+        right_candidates = [r for r in right_candidates if r >= 0]
+        right = min(right_candidates) + 1 if right_candidates else len(text)
+        start, end = left + 1, right
+        end = min(end, len(text))
+        if start >= end:
+            return issue.start, issue.end
+        return start, end
 
     def _clear(self) -> None:
         self.text_edit.clear()
+        self.clear_highlight()
         self.clear_requested.emit()
 
     def _open_file(self) -> None:

@@ -332,7 +332,7 @@ QTableWidget {
     selection-color: #0f3460;
 }
 QTableWidget::item {
-    padding: 8px 12px;
+    padding: 10px 12px;
     border: none;
 }
 QTableWidget::item:selected {
@@ -342,7 +342,7 @@ QTableWidget::item:selected {
 QHeaderView::section {
     background: #f5f7fa;
     color: #4b5563;
-    padding: 10px 12px;
+    padding: 4px 10px;
     border: none;
     border-bottom: 1px solid #dde3ec;
     font-weight: 700;

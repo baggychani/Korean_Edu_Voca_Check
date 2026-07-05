@@ -149,15 +149,15 @@ def _issue_from_lexeme(
     end: int,
 ) -> Issue:
     if lex.first_order_index is not None and lex.first_order_index <= target_oi:
-        status, severity, reason = IssueStatus.allowed, Severity.none, "교재 어휘"
+        status, severity, reason = IssueStatus.allowed, Severity.none, "목표 내"
     elif lex.first_order_index is not None and lex.first_order_index > target_oi:
         status, severity, reason = (
             IssueStatus.before_introduced,
             Severity.high,
-            "목표 단원보다 뒤에 나오는 교재 어휘",
+            "뒤 단원",
         )
     else:
-        status, severity, reason = IssueStatus.unknown_medium, Severity.medium, "단원 정보 없음"
+        status, severity, reason = IssueStatus.unknown_medium, Severity.medium, "단원 미등록"
 
     return Issue(
         surface=surface,
@@ -249,6 +249,11 @@ class Analyzer:
                 IssueStatus.custom_allowed,
             )
         ]
+        allowed_items = [
+            i
+            for i in issues
+            if i.status in (IssueStatus.allowed, IssueStatus.custom_allowed)
+        ]
 
         max_known_oi, max_known_display = None, ""
         lesson_cache: dict[tuple[str, str], int | None] = {}
@@ -286,6 +291,7 @@ class Analyzer:
         return AnalyzeResult(
             summary=summary,
             issues=visible if not request.show_debug_ignored else issues,
+            allowed=allowed_items,
             debug_ignored=debug_ignored if request.show_debug_ignored else [],
         )
 

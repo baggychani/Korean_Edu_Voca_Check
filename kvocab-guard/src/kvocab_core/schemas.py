@@ -64,8 +64,7 @@ class Issue(BaseModel):
     @property
     def first_seen_display(self) -> str:
         if self.first_level and self.first_lesson:
-            page = f", p.{self.first_page}" if self.first_page else ""
-            return f"{self.first_level} {self.first_lesson}{page}"
+            return f"{self.first_level} {self.first_lesson}"
         return ""
 
 
@@ -86,6 +85,7 @@ class AnalyzeSummary(BaseModel):
 class AnalyzeResult(BaseModel):
     summary: AnalyzeSummary
     issues: list[Issue] = Field(default_factory=list)
+    allowed: list[Issue] = Field(default_factory=list)
     debug_ignored: list[Issue] = Field(default_factory=list)
 
 

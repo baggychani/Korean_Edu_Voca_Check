@@ -17,15 +17,14 @@ from PySide6.QtWidgets import (
 
 from kvocab_core.config import DEFAULT_DB_PATH
 
-_COUNT_LABELS = {
-    "levels": "레벨",
-    "lessons": "단원",
-    "lexemes": "어휘",
-    "occurrences": "등장 위치",
-    "surface_forms": "표면형",
-    "allowlist": "허용어",
-    "unmapped": "매핑 실패",
-}
+_CARD_LAYOUT: list[tuple[str, str, int, int]] = [
+    ("levels", "레벨", 0, 0),
+    ("lessons", "단원", 0, 1),
+    ("lexemes", "어휘", 0, 2),
+    ("surface_forms", "표면형", 0, 3),
+    ("allowlist", "허용어", 1, 0),
+    ("unmapped", "매핑 실패", 1, 1),
+]
 
 
 def _stat_card(label: str) -> tuple[QFrame, QLabel]:
@@ -77,10 +76,10 @@ class DataPanel(QWidget):
         self._value_labels: dict[str, QLabel] = {}
         grid = QGridLayout()
         grid.setSpacing(10)
-        for i, (key, label) in enumerate(_COUNT_LABELS.items()):
+        for key, label, row, col in _CARD_LAYOUT:
             card, value = _stat_card(label)
             self._value_labels[key] = value
-            grid.addWidget(card, i // 4, i % 4)
+            grid.addWidget(card, row, col)
         layout.addLayout(grid)
 
         self.db_path_label = QLabel(f"DB 경로: {DEFAULT_DB_PATH}")

@@ -14,8 +14,7 @@ __pycache__/
 # IDE
 .vscode/
 
-# Large local reference materials (xlsx seed is sufficient for the app)
-Word/
+# Large local reference materials
 *.pdf
 
 # Temp

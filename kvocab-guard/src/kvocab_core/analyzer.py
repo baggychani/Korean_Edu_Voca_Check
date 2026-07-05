@@ -1,5 +1,10 @@
 from __future__ import annotations
 
+import os
+import re
+from concurrent.futures import ThreadPoolExecutor
+from threading import local
+
 from sqlalchemy.orm import Session
 
 from kvocab_core.allowlist import get_allowlist_set
@@ -47,6 +52,81 @@ class LexemeIndex:
 
     def lookup(self, norm: str) -> Lexeme | None:
         return self.by_norm_lemma.get(norm) or self.by_norm_surface.get(norm)
+
+
+_INDEX_CACHE: LexemeIndex | None = None
+
+
+def get_lexeme_index(session: Session) -> LexemeIndex:
+    global _INDEX_CACHE
+    if _INDEX_CACHE is None:
+        _INDEX_CACHE = LexemeIndex(session)
+    return _INDEX_CACHE
+
+
+def invalidate_lexeme_index() -> None:
+    global _INDEX_CACHE
+    _INDEX_CACHE = None
+
+
+def _segments_in_span(segs: list[MatchSegment], start: int, end: int) -> list[MatchSegment]:
+    return [s for s in segs if s.start >= start and s.end <= end]
+
+
+_SENTENCE_END = re.compile(r"[.!?。\n]+")
+_PARALLEL_MIN_SENTENCES = 2
+_PARALLEL_MIN_CHARS = 120
+_MAX_PARALLEL_WORKERS = 8
+
+_morph_local = local()
+
+
+def _thread_morph(use_morph: bool) -> KoreanMorphAnalyzer | RegexFallbackAnalyzer:
+    if not use_morph:
+        if not hasattr(_morph_local, "fallback"):
+            _morph_local.fallback = RegexFallbackAnalyzer()
+        return _morph_local.fallback
+    if not hasattr(_morph_local, "morph"):
+        _morph_local.morph = KoreanMorphAnalyzer()
+    return _morph_local.morph
+
+
+def split_sentence_spans(text: str) -> list[tuple[int, int]]:
+    """문장 경계(. ? ! 줄바꿈) 기준 (start, end) 목록. 전체 텍스트 좌표."""
+    if not text.strip():
+        return []
+    spans: list[tuple[int, int]] = []
+    start = 0
+    for m in _SENTENCE_END.finditer(text):
+        end = m.end()
+        chunk = text[start:end]
+        left = len(chunk) - len(chunk.lstrip())
+        right = len(chunk) - len(chunk.rstrip())
+        s, e = start + left, end - right
+        if s < e:
+            spans.append((s, e))
+        start = end
+    if start < len(text):
+        chunk = text[start:]
+        left = len(chunk) - len(chunk.lstrip())
+        right = len(chunk) - len(chunk.rstrip())
+        s, e = start + left, len(text) - right
+        if s < e:
+            spans.append((s, e))
+    return spans or [(0, len(text))]
+
+
+def _shift_issues(issues: list[Issue], offset: int, full_text: str) -> list[Issue]:
+    if not offset:
+        return issues
+    shifted: list[Issue] = []
+    for issue in issues:
+        data = issue.model_dump()
+        data["start"] = issue.start + offset
+        data["end"] = issue.end + offset
+        data["sentence"] = _sentence_at(full_text, data["start"], data["end"])
+        shifted.append(Issue(**data))
+    return shifted
 
 
 def _sentence_at(text: str, start: int, end: int) -> str:
@@ -106,6 +186,23 @@ def _eojeol_surface_at(
     return None
 
 
+def _display_surface(
+    text: str,
+    start: int,
+    end: int,
+    *,
+    eojeol: list[str],
+    eo_starts: list[int],
+    eo_ends: list[int],
+) -> str:
+    """형태소 구간이 한 어절 안에 있으면 사용자가 쓴 어절 전체를 표현으로 쓴다."""
+    for i, eo_start in enumerate(eo_starts):
+        eo_end = eo_ends[i]
+        if eo_start <= start < eo_end and end <= eo_end:
+            return eojeol[i].rstrip(".!?")
+    return text[start:end]
+
+
 class Analyzer:
     MAX_EXPR_SEGS = 6
 
@@ -127,36 +224,151 @@ class Analyzer:
 
         target_oi = lesson.order_index
         text = request.text or ""
-        index = LexemeIndex(self.session)
+        index = get_lexeme_index(self.session)
         allowlist = get_allowlist_set(self.session)
+
+        spans = split_sentence_spans(text)
+        use_parallel = len(spans) >= _PARALLEL_MIN_SENTENCES and len(text) >= _PARALLEL_MIN_CHARS
+
+        if use_parallel:
+            issues, debug_ignored, total_segs = self._analyze_parallel(
+                text, spans, target_oi, allowlist, index, request
+            )
+        else:
+            morph = self.morph if request.use_morph else RegexFallbackAnalyzer()
+            issues, debug_ignored, total_segs = self._analyze_chunk(
+                text, 0, text, target_oi, allowlist, index, request, morph
+            )
+
+        visible = [
+            i
+            for i in issues
+            if i.status
+            not in (
+                IssueStatus.allowed,
+                IssueStatus.custom_allowed,
+            )
+        ]
+
+        max_known_oi, max_known_display = None, ""
+        lesson_cache: dict[tuple[str, str], int | None] = {}
+        for i in issues:
+            if not i.first_level or not i.first_lesson or i.status == IssueStatus.custom_allowed:
+                continue
+            ck = (i.first_level, i.first_lesson)
+            if ck not in lesson_cache:
+                ls = (
+                    self.session.query(Lesson)
+                    .filter(Lesson.level == i.first_level, Lesson.lesson == i.first_lesson)
+                    .one_or_none()
+                )
+                lesson_cache[ck] = ls.order_index if ls else None
+            oi = lesson_cache[ck]
+            if oi and (max_known_oi is None or oi > max_known_oi):
+                max_known_oi = oi
+                max_known_display = f"{i.first_level} {i.first_lesson}"
+
+        summary = AnalyzeSummary(
+            target_display=f"{request.target_level} {request.target_lesson}",
+            total_tokens=total_segs,
+            issue_count=len(visible),
+            before_introduced_count=sum(
+                1 for i in issues if i.status == IssueStatus.before_introduced
+            ),
+            unknown_high_count=sum(1 for i in issues if i.status == IssueStatus.unknown_high),
+            unknown_medium_count=sum(1 for i in issues if i.status == IssueStatus.unknown_medium),
+            unknown_low_count=sum(1 for i in issues if i.status == IssueStatus.unknown_low),
+            ignored_count=len(debug_ignored),
+            allowed_count=sum(1 for i in issues if i.status == IssueStatus.allowed),
+            max_known_order_index=max_known_oi,
+            max_known_display=max_known_display,
+        )
+        return AnalyzeResult(
+            summary=summary,
+            issues=visible if not request.show_debug_ignored else issues,
+            debug_ignored=debug_ignored if request.show_debug_ignored else [],
+        )
+
+    def _analyze_parallel(
+        self,
+        full_text: str,
+        spans: list[tuple[int, int]],
+        target_oi: int,
+        allowlist: set[str],
+        index: LexemeIndex,
+        request: AnalyzeRequest,
+    ) -> tuple[list[Issue], list[Issue], int]:
+        workers = min(len(spans), os.cpu_count() or 4, _MAX_PARALLEL_WORKERS)
+        issues: list[Issue] = []
+        debug_ignored: list[Issue] = []
+        total_segs = 0
+
+        def _run(span: tuple[int, int]) -> tuple[list[Issue], list[Issue], int]:
+            s, e = span
+            chunk = full_text[s:e]
+            morph = _thread_morph(request.use_morph)
+            return self._analyze_chunk(
+                chunk, s, full_text, target_oi, allowlist, index, request, morph
+            )
+
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            for chunk_issues, chunk_debug, seg_count in pool.map(_run, spans):
+                issues.extend(chunk_issues)
+                debug_ignored.extend(chunk_debug)
+                total_segs += seg_count
+
+        return issues, debug_ignored, total_segs
+
+    def _analyze_chunk(
+        self,
+        text: str,
+        offset: int,
+        full_text: str,
+        target_oi: int,
+        allowlist: set[str],
+        index: LexemeIndex,
+        request: AnalyzeRequest,
+        morph: KoreanMorphAnalyzer | RegexFallbackAnalyzer,
+    ) -> tuple[list[Issue], list[Issue], int]:
         issues: list[Issue] = []
         debug_ignored: list[Issue] = []
         covered: list[tuple[int, int]] = []
 
+        tokens = morph.analyze(text)
+        segs = build_match_segments(tokens)
+
         def is_covered(s: int, e: int) -> bool:
             return any(a <= s and e <= b for a, b in covered)
 
-        # 어절·표현 우선 매칭 (안 그래도, 이메일을 …)
         eojeol = split_eojeol(text)
         eo_starts, eo_ends = self._eojeol_bounds(text, eojeol)
-        for key, start, end in self._eojeol_lexeme_spans(text, eojeol, eo_starts, eo_ends, index):
+        for key, start, end in self._eojeol_lexeme_spans(
+            text, eojeol, eo_starts, eo_ends, index, segs
+        ):
             if is_covered(start, end):
                 continue
             lex = index.lookup(key)
             if not lex:
                 continue
             covered.append((start, end))
-            issues.append(self._lex_issue(lex, key, text, start, end, target_oi, allowlist, "EXPR"))
+            issues.append(
+                self._lex_issue(
+                    lex,
+                    key,
+                    text,
+                    start,
+                    end,
+                    target_oi,
+                    allowlist,
+                    "EXPR",
+                    eojeol,
+                    eo_starts,
+                    eo_ends,
+                )
+            )
 
-        tokens = (
-            self.morph.analyze(text)
-            if request.use_morph
-            else RegexFallbackAnalyzer().analyze(text)
-        )
-        segs = build_match_segments(tokens)
         consumed = [False] * len(segs)
 
-        # 원형 시퀀스 n-gram (가격이+비싸다, 가입하다 …)
         for size in range(min(self.MAX_EXPR_SEGS, len(segs)), 0, -1):
             for i in range(len(segs) - size + 1):
                 if any(consumed[i : i + size]):
@@ -177,10 +389,21 @@ class Analyzer:
                 for k in range(i, i + size):
                     consumed[k] = True
                 issues.append(
-                    self._lex_issue(lex, key, text, start, end, target_oi, allowlist, "EXPR")
+                    self._lex_issue(
+                        lex,
+                        key,
+                        text,
+                        start,
+                        end,
+                        target_oi,
+                        allowlist,
+                        "EXPR",
+                        eojeol,
+                        eo_starts,
+                        eo_ends,
+                    )
                 )
 
-        # 남은 단일 내용어
         for i, seg in enumerate(segs):
             if consumed[i] or is_covered(seg.start, seg.end):
                 continue
@@ -193,9 +416,13 @@ class Analyzer:
             if not norm:
                 continue
 
-            surface = (
-                _eojeol_surface_at(eojeol, eo_starts, eo_ends, seg.start)
-                or text[seg.start : seg.end]
+            surface = _display_surface(
+                text,
+                seg.start,
+                seg.end,
+                eojeol=eojeol,
+                eo_starts=eo_starts,
+                eo_ends=eo_ends,
             )
 
             if norm in allowlist:
@@ -250,7 +477,6 @@ class Analyzer:
                 )
             )
 
-        # NNP → debug only
         for tok in tokens:
             if tok.pos == "NNP":
                 debug_ignored.append(
@@ -266,59 +492,13 @@ class Analyzer:
                     )
                 )
 
-
-        visible = [
-            i
-            for i in issues
-            if i.status
-            not in (
-                IssueStatus.allowed,
-                IssueStatus.custom_allowed,
-            )
-        ]
-
-        max_known_oi, max_known_display = None, ""
-        lesson_cache: dict[tuple[str, str], int | None] = {}
-        for i in issues:
-            if not i.first_level or not i.first_lesson or i.status == IssueStatus.custom_allowed:
-                continue
-            ck = (i.first_level, i.first_lesson)
-            if ck not in lesson_cache:
-                ls = (
-                    self.session.query(Lesson)
-                    .filter(Lesson.level == i.first_level, Lesson.lesson == i.first_lesson)
-                    .one_or_none()
-                )
-                lesson_cache[ck] = ls.order_index if ls else None
-            oi = lesson_cache[ck]
-            if oi and (max_known_oi is None or oi > max_known_oi):
-                max_known_oi = oi
-                max_known_display = f"{i.first_level} {i.first_lesson}"
-
-        summary = AnalyzeSummary(
-            target_display=f"{request.target_level} {request.target_lesson}",
-            total_tokens=len(segs),
-            issue_count=len(visible),
-            before_introduced_count=sum(
-                1 for i in issues if i.status == IssueStatus.before_introduced
-            ),
-            unknown_high_count=sum(1 for i in issues if i.status == IssueStatus.unknown_high),
-            unknown_medium_count=sum(1 for i in issues if i.status == IssueStatus.unknown_medium),
-            unknown_low_count=sum(1 for i in issues if i.status == IssueStatus.unknown_low),
-            ignored_count=len(debug_ignored),
-            allowed_count=sum(1 for i in issues if i.status == IssueStatus.allowed),
-            max_known_order_index=max_known_oi,
-            max_known_display=max_known_display,
-        )
-        return AnalyzeResult(
-            summary=summary,
-            issues=visible if not request.show_debug_ignored else issues,
-            debug_ignored=debug_ignored if request.show_debug_ignored else [],
+        return (
+            _shift_issues(issues, offset, full_text),
+            _shift_issues(debug_ignored, offset, full_text),
+            len(segs),
         )
 
-    def _eojeol_bounds(
-        self, text: str, eojeol: list[str]
-    ) -> tuple[list[int], list[int]]:
+    def _eojeol_bounds(self, text: str, eojeol: list[str]) -> tuple[list[int], list[int]]:
         starts: list[int] = []
         ends: list[int] = []
         pos = 0
@@ -338,6 +518,7 @@ class Analyzer:
         starts: list[int],
         ends: list[int],
         index: LexemeIndex,
+        all_segs: list[MatchSegment],
     ):
         seen: set[tuple[int, int]] = set()
         for key, i, j in build_eojeol_match_keys(eojeol):
@@ -354,9 +535,8 @@ class Analyzer:
                 span = (start, end)
                 if span in seen:
                     continue
-                sub = text[start:end]
-                segs = build_match_segments(self.morph.analyze(sub))
-                mkey = segment_key(segs) if segs else ""
+                sub_segs = _segments_in_span(all_segs, start, end)
+                mkey = segment_key(sub_segs) if sub_segs else ""
                 if mkey and index.lookup(mkey):
                     seen.add(span)
                     yield mkey, start, end
@@ -368,7 +548,7 @@ class Analyzer:
         starts, ends = self._eojeol_bounds(text, eojeol)
         yield from (
             (key, start, end)
-            for key, start, end in self._eojeol_lexeme_spans(text, eojeol, starts, ends, index)
+            for key, start, end in self._eojeol_lexeme_spans(text, eojeol, starts, ends, index, [])
         )
 
     def _lex_issue(
@@ -381,10 +561,27 @@ class Analyzer:
         target_oi: int,
         allowlist: set[str],
         pos: str,
+        eojeol: list[str],
+        eo_starts: list[int],
+        eo_ends: list[int],
     ) -> Issue:
+        surface = _display_surface(
+            text,
+            start,
+            end,
+            eojeol=eojeol,
+            eo_starts=eo_starts,
+            eo_ends=eo_ends,
+        )
         issue = _issue_from_lexeme(
-            lex, surface=text[start:end], norm=key, pos=pos,
-            target_oi=target_oi, text=text, start=start, end=end,
+            lex,
+            surface=surface,
+            norm=key,
+            pos=pos,
+            target_oi=target_oi,
+            text=text,
+            start=start,
+            end=end,
         )
         if key in allowlist or lex.normalized_lemma in allowlist:
             issue.status = IssueStatus.custom_allowed

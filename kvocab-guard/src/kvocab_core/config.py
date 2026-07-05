@@ -63,6 +63,7 @@ REPO_ROOT = PACKAGE_ROOT.parent
 VOCABULARY_DIR = REPO_ROOT / "vocabulary"
 TEXTBOOKS_DIR = REPO_ROOT / "textbooks"
 WORD_DIR = REPO_ROOT / "Word"
+COVERS_DIR = REPO_ROOT / "covers"
 DEFAULT_DATA_DIR = Path(os.environ.get("KVOCAB_DATA_DIR", PACKAGE_ROOT / "data"))
 DEFAULT_DB_PATH = DEFAULT_DATA_DIR / "kvocab.db"
 
@@ -93,6 +94,15 @@ USABLE_REVIEW_STATUSES = frozenset(
 )
 
 EXCLUDED_REVIEW_STATUSES = frozenset({"unmapped", "rejected"})
+
+
+def cover_image_path(level: str) -> Path | None:
+    """Return ``covers/{level}.{ext}`` if present."""
+    for ext in (".jpg", ".jpeg", ".png", ".webp"):
+        candidate = COVERS_DIR / f"{level}{ext}"
+        if candidate.exists():
+            return candidate
+    return None
 
 
 def compute_order_index(level: str, unit_no: int, lesson_no: int) -> int:

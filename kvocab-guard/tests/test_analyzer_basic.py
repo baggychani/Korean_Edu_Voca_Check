@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from kvocab_core.analyzer import Analyzer
+from kvocab_core.analyzer import Analyzer, split_sentence_spans
 from kvocab_core.config import DEFAULT_SEED_XLSX
 from kvocab_core.database import init_db
 from kvocab_core.models import Lexeme
@@ -68,6 +68,46 @@ def test_nnp_not_in_default_issues(analyzer):
     assert not any(i.status == IssueStatus.ignored_nnp for i in issues)
 
 
+def test_split_sentence_spans():
+    text = "안녕하세요. 저는 학생입니다! 한국어를 공부해요."
+    spans = split_sentence_spans(text)
+    assert len(spans) == 3
+    assert text[spans[0][0] : spans[0][1]] == "안녕하세요."
+    assert text[spans[1][0] : spans[1][1]] == "저는 학생입니다!"
+    assert text[spans[2][0] : spans[2][1]] == "한국어를 공부해요."
+
+
+def test_parallel_multi_sentence_finds_issues(analyzer):
+    text = "토스트에 잼을 발라 먹어요. 동호회에 가입하고 싶어요. 정합적인 설명입니다."
+    assert len(split_sentence_spans(text)) >= 2
+    with analyzer() as session:
+        result = Analyzer(session).analyze(
+            AnalyzeRequest(
+                text=text,
+                target_level="2A",
+                target_lesson="2-1",
+                strictness=Strictness.balanced,
+            )
+        )
+    assert result.summary.issue_count >= 1
+    lemmas = {i.lemma for i in result.issues}
+    assert "가입하다" in lemmas or "정합적" in lemmas or "먹다" in lemmas
+
+
+def test_surface_shows_eojeol_not_stem(analyzer):
+    with analyzer() as session:
+        result = Analyzer(session).analyze(
+            AnalyzeRequest(
+                text="토스트에 잼을 발라 먹어요.",
+                target_level="1A",
+                target_lesson="1-1",
+            )
+        )
+    by_lemma = {i.lemma: i.surface for i in result.issues}
+    assert by_lemma.get("먹다") == "먹어요"
+    assert by_lemma.get("바르다") == "발라"
+
+
 def test_no_substring_bang_hak(analyzer):
     with analyzer() as session:
         lex = session.query(Lexeme).filter(Lexeme.normalized_lemma == "방").one_or_none()
@@ -93,4 +133,3 @@ def test_no_substring_bang_hak(analyzer):
     issues = _analyze(analyzer, "방학이 시작됐어요.", "9-2")
     before = [i for i in issues if i.surface == "방" and i.status == IssueStatus.before_introduced]
     assert not before
-

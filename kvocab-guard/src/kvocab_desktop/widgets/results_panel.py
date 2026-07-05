@@ -1,47 +1,27 @@
 from __future__ import annotations
 
-
-
 from PySide6.QtCore import Qt, Signal
-
 from PySide6.QtGui import QColor
-
 from PySide6.QtWidgets import (
-
     QAbstractItemView,
-
     QFrame,
-
     QHBoxLayout,
-
     QHeaderView,
-
     QLabel,
-
     QPushButton,
-
     QTableWidget,
-
     QTableWidgetItem,
-
     QVBoxLayout,
-
     QWidget,
-
 )
 
-
-
 from kvocab_core.schemas import AnalyzeResult, Issue
-
 from kvocab_core.status_labels import status_label_ko
-
-from kvocab_desktop.widgets.table_font import bold_font
-
 from kvocab_desktop.style import STATUS_BG_COLORS, STATUS_COLORS
+from kvocab_desktop.widgets.table_font import app_default_font, bold_font
 
-
-
+# 표현만 약간 넓게, 문장(Stretch)은 남은 공간에서 자동으로 줄어듦
+_EXPRESSION_COL_WIDTH = 112
 
 
 def _stat_card(label: str, accent: str = "#111827") -> tuple[QFrame, QLabel]:
@@ -74,16 +54,10 @@ def _stat_card(label: str, accent: str = "#111827") -> tuple[QFrame, QLabel]:
     return card, value
 
 
-
-
-
 class ResultsPanel(QWidget):
-
     issue_selected = Signal(object)
 
     allow_requested = Signal(str)
-
-
 
     def __init__(self, parent=None) -> None:
 
@@ -95,15 +69,11 @@ class ResultsPanel(QWidget):
 
         layout.setSpacing(16)
 
-
-
         summary_title = QLabel("검사 요약")
 
         summary_title.setObjectName("sectionTitle")
 
         layout.addWidget(summary_title)
-
-
 
         stats_row = QHBoxLayout()
         stats_row.setSpacing(10)
@@ -119,8 +89,6 @@ class ResultsPanel(QWidget):
         stats_row.addWidget(card, 1)
         layout.addLayout(stats_row)
 
-
-
         list_header = QHBoxLayout()
 
         list_header.setSpacing(8)
@@ -135,8 +103,6 @@ class ResultsPanel(QWidget):
 
         layout.addLayout(list_header)
 
-
-
         chip_row = QHBoxLayout()
 
         chip_row.setSpacing(6)
@@ -144,19 +110,12 @@ class ResultsPanel(QWidget):
         self.filter_buttons: dict[str, QPushButton] = {}
 
         for key, label in [
-
             ("all", "전체"),
-
             ("before_introduced", "아직 이릅니다"),
-
             ("unknown_high", "교재 외 · 높음"),
-
             ("unknown_medium", "교재 외 · 검토"),
-
             ("unknown_low", "교재 외 · 참고"),
-
         ]:
-
             btn = QPushButton(label)
 
             btn.setCheckable(True)
@@ -177,14 +136,16 @@ class ResultsPanel(QWidget):
 
         layout.addLayout(chip_row)
 
-
+        self.completion_label = QLabel("")
+        self.completion_label.setObjectName("completionStatus")
+        self.completion_label.setWordWrap(True)
+        self.completion_label.setVisible(False)
+        layout.addWidget(self.completion_label)
 
         self.table = QTableWidget(0, 6)
 
         self.table.setHorizontalHeaderLabels(
-
             ["표현", "원형", "판정", "처음 나오는 곳", "이유", "문장"]
-
         )
 
         self.table.verticalHeader().setVisible(False)
@@ -198,20 +159,22 @@ class ResultsPanel(QWidget):
         self.table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
 
         self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.table.setFont(app_default_font())
 
         self.table.setWordWrap(False)
 
         header = self.table.horizontalHeader()
 
-        header.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
-
+        header.setStretchLastSection(True)
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.Interactive)
+        for col in (1, 2, 3, 4):
+            header.setSectionResizeMode(col, QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(5, QHeaderView.ResizeMode.Stretch)
+        header.resizeSection(0, _EXPRESSION_COL_WIDTH)
 
         self.table.itemSelectionChanged.connect(self._on_select)
 
         layout.addWidget(self.table, stretch=1)
-
-
 
         selection_bar = QFrame()
         selection_bar.setObjectName("selectionBar")
@@ -240,8 +203,6 @@ class ResultsPanel(QWidget):
         sel_layout.addLayout(btn_col)
         layout.addWidget(selection_bar)
 
-
-
         self._issues: list[Issue] = []
 
         self._filter = "all"
@@ -252,28 +213,28 @@ class ResultsPanel(QWidget):
 
         self.copy_btn.clicked.connect(self._copy)
 
-
-
     def _set_filter(self, key: str) -> None:
 
         self._filter = key
 
         for k, btn in self.filter_buttons.items():
-
             btn.setChecked(k == key)
 
         self._refresh_table()
 
-
-
     def show_result(self, result: AnalyzeResult | None) -> None:
 
         if not result:
-
             self._issues = []
+            self.completion_label.setVisible(False)
 
-            for lbl in (self.lbl_target, self.lbl_issues, self.lbl_early, self.lbl_high, self.lbl_max):
-
+            for lbl in (
+                self.lbl_target,
+                self.lbl_issues,
+                self.lbl_early,
+                self.lbl_high,
+                self.lbl_max,
+            ):
                 lbl.setText("-")
 
             self._refresh_table()
@@ -294,38 +255,33 @@ class ResultsPanel(QWidget):
 
         self._issues = result.issues
 
+        if s.issue_count == 0:
+            self.completion_label.setText(f"검사 완료 — {s.target_display} 기준 문제 없음")
+            self.completion_label.setVisible(True)
+        else:
+            self.completion_label.setVisible(False)
+
         self._refresh_table()
-
-
 
     def _refresh_table(self) -> None:
 
         filtered = self._issues
 
         if self._filter != "all":
-
             filtered = [i for i in self._issues if i.status.value == self._filter]
 
         self.table.setRowCount(len(filtered))
 
         for row, issue in enumerate(filtered):
-
             label = status_label_ko(issue.status.value)
 
             values = [
-
                 issue.surface,
-
                 issue.lemma,
-
                 label,
-
                 issue.first_seen_display,
-
                 issue.reason,
-
                 issue.sentence,
-
             ]
 
             fg = STATUS_COLORS.get(issue.status.value)
@@ -333,23 +289,18 @@ class ResultsPanel(QWidget):
             bg = STATUS_BG_COLORS.get(issue.status.value)
 
             for col, val in enumerate(values):
-
                 item = QTableWidgetItem(val)
 
                 item.setData(Qt.ItemDataRole.UserRole, issue)
 
                 if col == 0:
-
                     item.setFont(bold_font(self.table))
 
                 if col == 2:
-
                     if fg:
-
                         item.setForeground(QColor(fg))
 
                     if bg:
-
                         item.setBackground(QColor(bg))
 
                     item.setFont(bold_font(self.table))
@@ -358,14 +309,11 @@ class ResultsPanel(QWidget):
 
             self.table.setRowHeight(row, 38)
 
-
-
     def _on_select(self) -> None:
 
         items = self.table.selectedItems()
 
         if not items:
-
             self._selected = None
 
             self.selected_label.setText("—")
@@ -388,27 +336,17 @@ class ResultsPanel(QWidget):
 
         self.issue_selected.emit(issue)
 
-
-
     def _allow(self) -> None:
 
         if self._selected:
-
             self.allow_requested.emit(self._selected.surface)
-
-
 
     def _copy(self) -> None:
 
         if self._selected:
-
             from PySide6.QtWidgets import QApplication
 
-
-
             QApplication.clipboard().setText(self._selected.surface)
-
-
 
     def clear(self) -> None:
 
@@ -421,5 +359,3 @@ class ResultsPanel(QWidget):
         self.allow_btn.setEnabled(False)
 
         self.copy_btn.setEnabled(False)
-
-

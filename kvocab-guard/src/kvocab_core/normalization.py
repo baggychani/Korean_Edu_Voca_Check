@@ -67,3 +67,15 @@ def count_korean_syllables(text: str) -> int:
 
 def is_very_short_common(text: str) -> bool:
     return normalize_key(text) in _COMMON_SHORT
+
+
+def lemma_gana_sort_key(lemma: str) -> str:
+    """괄호로 시작하는 표제어는 닫는 괄호 뒤 본표제어 기준으로 정렬."""
+    text = normalize_text(lemma)
+    if text.startswith("("):
+        close = text.find(")")
+        if close != -1:
+            tail = text[close + 1 :].strip()
+            if tail:
+                return tail
+    return text

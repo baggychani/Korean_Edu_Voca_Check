@@ -97,7 +97,9 @@ def build_match_segments(tokens: list[MorphToken]) -> list[MatchSegment]:
             i += 1
             continue
 
-        if tok.pos.startswith(("VV", "VA", "VX", "VCN", "NNG", "NNB", "NR", "NP", "MM", "MAG", "MAJ", "IC", "XR")):
+        if tok.pos.startswith(
+            ("VV", "VA", "VX", "VCN", "NNG", "NNB", "NR", "NP", "MM", "MAG", "MAJ", "IC", "XR")
+        ):
             lemma = restore_dictionary_form(tok.lemma or tok.surface, tok.pos)
             segs.append(MatchSegment(tok.surface, lemma, tok.start, tok.end))
         i += 1

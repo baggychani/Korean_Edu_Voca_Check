@@ -71,11 +71,7 @@ def _stage_unmapped(
 
 
 def _metadata_from_row(row: dict) -> dict:
-    return {
-        k: row.get(k)
-        for k in ("unit_topic", "unit_title")
-        if row.get(k) not in (None, "")
-    }
+    return {k: row.get(k) for k in ("unit_topic", "unit_title") if row.get(k) not in (None, "")}
 
 
 def import_level_map_sheet(session: Session, ws) -> int:
@@ -139,7 +135,13 @@ def import_vocabulary_xlsx(session: Session, path: Path) -> dict:
         lesson_no_raw = row.get("lesson_no")
         first_page_raw = row.get("first_page")
 
-        if not lemma or not level or unit_no_raw is None or lesson_no_raw is None or first_page_raw is None:
+        if (
+            not lemma
+            or not level
+            or unit_no_raw is None
+            or lesson_no_raw is None
+            or first_page_raw is None
+        ):
             _stage_unmapped(
                 session,
                 lemma=str(lemma) if lemma else None,

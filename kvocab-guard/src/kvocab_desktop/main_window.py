@@ -16,9 +16,9 @@ from PySide6.QtWidgets import (
 )
 
 from kvocab_core.allowlist import add_allowlist_item, delete_allowlist_item, list_allowlist
-from kvocab_core.analyzer import Analyzer
+from kvocab_core.analyzer import Analyzer, invalidate_lexeme_index
 from kvocab_core.database import get_counts, init_db
-from kvocab_core.dictionary import search_lexemes
+from kvocab_core.dictionary import list_lexemes, search_lexemes
 from kvocab_core.models import Lesson, Level, Lexeme
 from kvocab_core.schemas import AnalyzeRequest, Strictness
 from kvocab_core.seed import full_seed
@@ -78,20 +78,32 @@ class MainWindow(QMainWindow):
         sb_layout = QVBoxLayout(sidebar)
         sb_layout.setContentsMargins(22, 28, 22, 24)
         sb_layout.setSpacing(0)
-        title = QLabel("한국어교육\n단어 검사기")
+        logo_frame = QFrame()
+        logo_frame.setObjectName("sidebarLogo")
+        logo_lay = QVBoxLayout(logo_frame)
+        logo_lay.setContentsMargins(14, 12, 14, 12)
+        logo_lay.setSpacing(3)
+        tag = QLabel("한국어교육")
+        tag.setObjectName("sidebarTag")
+        title = QLabel("단어 검사기")
         title.setObjectName("sidebarTitle")
         subtitle = QLabel("서울대 한국어 교재 기준")
         subtitle.setObjectName("sidebarSubtitle")
+        logo_lay.addWidget(tag)
+        logo_lay.addWidget(title)
+        logo_lay.addWidget(subtitle)
         divider = QFrame()
         divider.setObjectName("sidebarDivider")
         divider.setFrameShape(QFrame.Shape.HLine)
         divider.setFixedHeight(1)
-        sb_layout.addWidget(title)
-        sb_layout.addWidget(subtitle)
+        sb_layout.addWidget(logo_frame)
         sb_layout.addWidget(divider)
         self.target_selector = TargetSelector()
         sb_layout.addWidget(self.target_selector)
         sb_layout.addStretch()
+        copyright_lbl = QLabel("© 2026 Bae Gichan. All rights reserved.")
+        copyright_lbl.setObjectName("sidebarCopyright")
+        sb_layout.addWidget(copyright_lbl)
         main_layout.addWidget(sidebar)
 
         content = QWidget()
@@ -127,6 +139,7 @@ class MainWindow(QMainWindow):
         self._refresh_allowlist()
         self._refresh_counts()
         self._ensure_seeded()
+        self._load_dictionary_default()
 
     def _wire_events(self) -> None:
         self.analyze_panel.analyze_requested.connect(self._run_analyze)
@@ -177,6 +190,7 @@ class MainWindow(QMainWindow):
         if not self.analyze_panel.get_text().strip():
             QMessageBox.warning(self, "입력 필요", "검사할 텍스트를 입력하세요.")
             return
+        self.analyze_panel.run_btn.setText("검사 중…")
         self.analyze_panel.run_btn.setEnabled(False)
         self._worker = AnalyzeWorker(self.session_factory, self._build_request())
         self._worker.finished_ok.connect(self._on_analyze_done)
@@ -184,23 +198,33 @@ class MainWindow(QMainWindow):
         self._worker.start()
 
     def _on_analyze_done(self, result) -> None:
+        self.analyze_panel.run_btn.setText("텍스트 검사")
         self.analyze_panel.run_btn.setEnabled(True)
         self.results_panel.show_result(result)
 
     def _on_analyze_fail(self, msg: str) -> None:
+        self.analyze_panel.run_btn.setText("텍스트 검사")
         self.analyze_panel.run_btn.setEnabled(True)
         QMessageBox.critical(self, "검사 오류", msg)
 
     def _run_dictionary_search(self, query: str) -> None:
-        if not query:
-            return
         with self.session_factory() as session:
-            results = search_lexemes(
-                session,
-                query,
-                target_order_index=self._target_order_index(),
-            )
+            target_order_index = self._target_order_index()
+            if query:
+                results = search_lexemes(
+                    session,
+                    query,
+                    target_order_index=target_order_index,
+                )
+            else:
+                results = list_lexemes(
+                    session,
+                    target_order_index=target_order_index,
+                )
         self.dict_panel.show_results(results)
+
+    def _load_dictionary_default(self) -> None:
+        self._run_dictionary_search("")
 
     def _add_allow(self, text: str) -> None:
         if not text.strip():
@@ -245,9 +269,22 @@ class MainWindow(QMainWindow):
             self.data_panel.show_counts(get_counts(session))
 
     def _run_seed(self, silent: bool = False) -> None:
+        if not silent:
+            reply = QMessageBox.warning(
+                self,
+                "DB 초기화",
+                "DB를 초기화하고 seed를 다시 불러옵니다.\n"
+                "어휘·허용어 등 저장된 데이터가 모두 삭제됩니다.\n\n"
+                "정말 계속하시겠습니까?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No,
+            )
+            if reply != QMessageBox.StandardButton.Yes:
+                return
         try:
             with self.session_factory() as session:
                 stats = full_seed(session)
+            invalidate_lexeme_index()
             self._load_target_data()
             self._refresh_counts()
             if not silent:
@@ -266,6 +303,7 @@ class MainWindow(QMainWindow):
         try:
             with self.session_factory() as session:
                 stats = import_vocabulary_xlsx(session, Path(path))
+            invalidate_lexeme_index()
             self._refresh_counts()
             QMessageBox.information(self, "가져오기 완료", str(stats))
         except Exception as exc:

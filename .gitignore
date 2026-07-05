@@ -20,3 +20,7 @@ textbooks/
 # OS
 .DS_Store
 Thumbs.db
+
+# Local design sources (processed icons live in src/kvocab_desktop/assets/)
+kvocab-guard/assets/logo_source.png
+ChatGPT*.png

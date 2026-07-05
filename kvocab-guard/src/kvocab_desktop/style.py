@@ -3,7 +3,7 @@
 APP_STYLESHEET = """
 * {
     font-family: "Pretendard", "Malgun Gothic", "Segoe UI", sans-serif;
-    font-size: 13px;
+    font-size: 10pt;
 }
 
 QMainWindow {
@@ -18,7 +18,7 @@ QWidget {
 
 /* ---------- Sidebar ---------- */
 QFrame#sidebar {
-    background: #171c26;
+    background: #151b26;
     border: none;
     border-right: 1px solid #252d3b;
 }
@@ -28,31 +28,43 @@ QFrame#sidebar QWidget {
 QFrame#sidebar QLabel {
     background: transparent;
 }
+QFrame#sidebarLogo {
+    background: #192131;
+    border-left: 3px solid #2d7dd2;
+    border-radius: 10px;
+    padding: 0;
+    margin: 0 0 2px 0;
+}
+QLabel#sidebarTag {
+    font-size: 11px;
+    font-weight: 600;
+    color: #7bb7ff;
+    letter-spacing: 0.6px;
+}
 QLabel#sidebarTitle {
-    font-size: 17px;
+    font-size: 20px;
     font-weight: 700;
     color: #ffffff;
-    line-height: 1.35;
-    padding: 2px 0 4px 0;
+    padding: 0;
 }
 QLabel#sidebarSubtitle {
-    font-size: 11px;
-    color: #7b8798;
-    padding: 0 0 16px 0;
+    font-size: 10px;
+    color: #8794a8;
+    padding: 4px 0 0 0;
 }
 QFrame#sidebarDivider {
     background: #2a3344;
     border: none;
     min-height: 1px;
     max-height: 1px;
-    margin: 4px 0 12px 0;
+    margin: 3px 0 6px 0;
 }
 QLabel#sidebarSection {
     font-size: 10px;
     font-weight: 700;
-    color: #5c6b82;
+    color: #6d7a91;
     letter-spacing: 0.6px;
-    padding: 18px 0 8px 0;
+    padding: 12px 0 7px 0;
 }
 QLabel#sidebarFieldLabel {
     font-size: 12px;
@@ -60,17 +72,25 @@ QLabel#sidebarFieldLabel {
     color: #a8b4c4;
     padding: 0 0 4px 2px;
 }
+QWidget#coverPreview {
+    background: transparent;
+}
+QLabel#sidebarCopyright {
+    font-size: 9px;
+    color: #566278;
+    padding-top: 6px;
+}
 QFrame#sidebar QComboBox {
-    background: #222a38;
+    background: #202838;
     color: #edf1f7;
-    border: 1px solid #343f52;
-    border-radius: 8px;
+    border: 1px solid #38445a;
+    border-radius: 9px;
     padding: 9px 12px;
     min-height: 18px;
 }
 QFrame#sidebar QComboBox:hover {
-    border-color: #4a5a72;
-    background: #262f40;
+    border-color: #58708f;
+    background: #242e40;
 }
 QFrame#sidebar QComboBox::drop-down {
     border: none;
@@ -155,6 +175,14 @@ QFrame#statCard {
     background: #ffffff;
     border: 1px solid #dde3ec;
     border-radius: 10px;
+}
+QLabel#completionStatus {
+    color: #15803d;
+    background: #f0fdf4;
+    border: 1px solid #bbf7d0;
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-size: 12px;
 }
 QLabel#statValue {
     font-size: 19px;

@@ -78,9 +78,7 @@ def build_ngram_keys(
     return results
 
 
-def build_eojeol_match_keys(
-    eojeol: list[str], max_n: int = 5
-) -> list[tuple[str, int, int]]:
+def build_eojeol_match_keys(eojeol: list[str], max_n: int = 5) -> list[tuple[str, int, int]]:
     """다어절 n-gram + 단일 어절(조사 제거 포함) lookup key."""
     results: list[tuple[str, int, int]] = []
     seen: set[tuple[str, int, int]] = set()

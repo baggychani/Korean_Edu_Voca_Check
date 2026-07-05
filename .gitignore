@@ -14,8 +14,12 @@ __pycache__/
 # IDE
 .vscode/
 
-# Large local reference materials
-*.pdf
+# Full textbook PDFs at repo root only (large scans)
+/서울대 한국어 2A.pdf
+/서울대 한국어 2B.pdf
+/서울대 한국어 3A.pdf
+/서울대 한국어 3B.pdf
+/서울대 한국어 4A.pdf
 
 # Temp
 kvocab-guard/_2b_pages/

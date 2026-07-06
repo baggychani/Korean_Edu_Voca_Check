@@ -5,7 +5,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "릴리스 버전 (비우면 config.APP_VERSION 사용, 예: 1.0.1)"
+        description: "릴리스 버전 (비우면 config.APP_VERSION 사용, 예: 0.0.1)"
         required: false
         type: string
       create_github_release:
@@ -62,7 +62,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: version-metadata
-          retention-days: 1
+          retention-days: 7
           path: |
             kvocab-guard/src/kvocab_core/config.py
             kvocab-guard/pyproject.toml
@@ -93,7 +93,7 @@ jobs:
         run: pytest tests/ -q
 
   build-windows:
-    name: Windows (Setup + portable)
+    name: Windows (Setup + portable + publish)
     needs: [prepare, test]
     runs-on: windows-latest
     steps:
@@ -113,6 +113,7 @@ jobs:
 
       - name: PyInstaller (onedir)
         shell: pwsh
+        working-directory: kvocab-guard
         run: |
           pyinstaller --noconfirm --windowed `
             --icon=src/kvocab_desktop/assets/app_icon.ico `
@@ -133,6 +134,7 @@ jobs:
 
       - name: Compile installer
         shell: pwsh
+        working-directory: kvocab-guard
         env:
           VERSION: ${{ needs.prepare.outputs.version }}
         run: |
@@ -146,43 +148,31 @@ jobs:
 
       - name: Zip portable onedir
         shell: pwsh
+        working-directory: kvocab-guard
         run: |
           Compress-Archive -Path "dist\KVocabGuard\*" `
             -DestinationPath "KVocabGuard-windows-x64-portable-v${{ needs.prepare.outputs.version }}.zip" -Force
 
-      - uses: actions/upload-artifact@v4
-        with:
-          name: windows-release
-          retention-days: 1
-          path: |
-            release/KVocabGuard_v*_Setup.exe
-            KVocabGuard-windows-x64-portable-v*.zip
-
-  publish:
-    name: Publish → Korean_Edu_Voca_Check
-    needs: [prepare, build-windows]
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ${{ github.workspace }}
-    if: >-
-      needs.prepare.result == 'success' &&
-      needs.build-windows.result == 'success' &&
-      inputs.create_github_release
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          name: windows-release
-          path: dist-upload
-
-      - name: List release files
-        run: find dist-upload -type f | sort
+      - name: Verify release files
+        shell: pwsh
+        working-directory: kvocab-guard
+        run: |
+          $setup = Get-ChildItem -Path release -Filter "KVocabGuard_v*_Setup.exe"
+          $zip = Get-ChildItem -Path . -Filter "KVocabGuard-windows-x64-portable-v*.zip"
+          if (-not $setup) { throw "Setup exe missing" }
+          if (-not $zip) { throw "Portable zip missing" }
+          Write-Host "Release files:"
+          $setup | ForEach-Object { Write-Host "  $($_.FullName)" }
+          $zip | ForEach-Object { Write-Host "  $($_.FullName)" }
 
       - name: Create GitHub Release
+        if: inputs.create_github_release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ needs.prepare.outputs.tag }}
           name: 한국어교육 단어 검사기 ${{ needs.prepare.outputs.version }}
           generate_release_notes: true
-          files: dist-upload/**/*
+          files: |
+            kvocab-guard/release/KVocabGuard_v*_Setup.exe
+            kvocab-guard/KVocabGuard-windows-x64-portable-v*.zip
           fail_on_unmatched_files: true

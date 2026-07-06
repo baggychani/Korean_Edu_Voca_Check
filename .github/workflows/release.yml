@@ -143,9 +143,12 @@ jobs:
         working-directory: kvocab-guard
         run: |
           $exe = "$PWD\dist\KVocabGuard\KVocabGuard.exe"
-          & $exe --smoke-analyze
-          if ($LASTEXITCODE -ne 0) {
-            throw "Packaged Kiwi smoke test failed with code $LASTEXITCODE"
+          $smoke = Start-Process -FilePath $exe -ArgumentList "--smoke-analyze" -Wait -PassThru
+          if ($null -eq $smoke.ExitCode) {
+            throw "Packaged Kiwi smoke test did not report an exit code"
+          }
+          if ($smoke.ExitCode -ne 0) {
+            throw "Packaged Kiwi smoke test failed with code $($smoke.ExitCode)"
           }
           $p = Start-Process -FilePath $exe -PassThru
           Start-Sleep -Seconds 5

@@ -26,11 +26,9 @@ _ALLOW_TYPE_LABELS = [
 _COL_TEXT = 0
 _COL_TYPE = 1
 _COL_NOTE = 2
-# ResizeToContents 기준 약 80px → 텍스트 3.5배, 유형 2배
-_BASE_COL_W = 80
 _FIXED_WIDTHS = {
-    _COL_TEXT: int(_BASE_COL_W * 3.5),
-    _COL_TYPE: int(_BASE_COL_W * 2),
+    _COL_TEXT: 225,
+    _COL_TYPE: 96,
 }
 
 
@@ -64,6 +62,7 @@ class AllowlistPanel(QWidget):
         self.type_combo = QComboBox()
         for code, label in _ALLOW_TYPE_LABELS:
             self.type_combo.addItem(label, code)
+        self.type_combo.setFixedWidth(106)
         self.note_input = QLineEdit()
         self.note_input.setPlaceholderText("메모 (선택)")
         self.add_btn = QPushButton("추가")
@@ -72,9 +71,9 @@ class AllowlistPanel(QWidget):
         self.del_btn.setProperty("variant", "secondary")
         self.del_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self.del_btn.setEnabled(False)
-        form.addWidget(self.text_input, 7)
-        form.addWidget(self.type_combo, 4)
-        form.addWidget(self.note_input, 3)
+        form.addWidget(self.text_input, 56)
+        form.addWidget(self.type_combo)
+        form.addWidget(self.note_input, 79)
         form.addWidget(self.add_btn)
         form.addWidget(self.del_btn)
         layout.addWidget(form_card)

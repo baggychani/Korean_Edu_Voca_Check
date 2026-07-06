@@ -85,9 +85,9 @@ def _field_label(text: str) -> QLabel:
 def _setup_sidebar_combo(combo: QComboBox) -> None:
     view = QListView()
     view.setObjectName("comboPopup")
-    view.setSpacing(2)
+    view.setSpacing(1)
     combo.setView(view)
-    combo.setMaxVisibleItems(12)
+    combo.setMaxVisibleItems(10)
 
 
 class TargetSelector(QWidget):

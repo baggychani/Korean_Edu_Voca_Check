@@ -348,12 +348,12 @@ QListView#comboPopup {
     background: #222a38;
     color: #edf1f7;
     border: 1px solid #343f52;
-    padding: 6px;
+    padding: 4px;
     outline: 0;
 }
 QListView#comboPopup::item {
-    min-height: 28px;
-    padding: 7px 10px;
+    min-height: 22px;
+    padding: 4px 10px;
     border-radius: 6px;
 }
 QListView#comboPopup::item:selected {

@@ -120,7 +120,8 @@ jobs:
             --collect-all kiwipiepy `
             --add-data "data/seed;data/seed" `
             --add-data "src/kvocab_desktop/assets;kvocab_desktop/assets" `
-            -m kvocab_desktop.app
+            --paths src `
+            src/kvocab_desktop/app.py
           if (-not (Test-Path "dist\KVocabGuard\KVocabGuard.exe")) {
             throw "PyInstaller output not found"
           }

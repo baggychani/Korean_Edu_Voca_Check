@@ -9,7 +9,7 @@ on:
         required: false
         type: string
       create_github_release:
-        description: "baggychani/KoreanVoca 에 Release·바이너리 업로드"
+        description: "baggychani/Korean_Edu_Voca_Check 에 Release·바이너리 업로드"
         required: false
         type: boolean
         default: true

@@ -10,7 +10,7 @@ APP_VERSION = "0.0.0"
 APP_TITLE = f"한국어교육 단어 검사기 {APP_VERSION}"
 
 GITHUB_OWNER = "baggychani"
-GITHUB_REPO = "KoreanVoca"
+GITHUB_REPO = "Korean_Edu_Voca_Check"
 GITHUB_RELEASE_URL = f"https://github.com/{GITHUB_OWNER}/{GITHUB_REPO}/releases"
 GITHUB_API_LATEST_RELEASE = (
     f"https://api.github.com/repos/{GITHUB_OWNER}/{GITHUB_REPO}/releases/latest"

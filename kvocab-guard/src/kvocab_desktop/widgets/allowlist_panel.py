@@ -22,6 +22,25 @@ _ALLOW_TYPE_LABELS = [
     ("document", "문서"),
 ]
 
+_COL_TEXT = 0
+_COL_TYPE = 1
+_COL_NOTE = 2
+# ResizeToContents 기준 약 80px → 텍스트 3.5배, 유형 2배
+_BASE_COL_W = 80
+_FIXED_WIDTHS = {
+    _COL_TEXT: int(_BASE_COL_W * 3.5),
+    _COL_TYPE: int(_BASE_COL_W * 2),
+}
+
+
+def _apply_allowlist_column_widths(table: QTableWidget) -> None:
+    header = table.horizontalHeader()
+    header.setStretchLastSection(False)
+    for col, width in _FIXED_WIDTHS.items():
+        header.setSectionResizeMode(col, QHeaderView.ResizeMode.Fixed)
+        header.resizeSection(col, width)
+    header.setSectionResizeMode(_COL_NOTE, QHeaderView.ResizeMode.Stretch)
+
 
 class AllowlistPanel(QWidget):
     def __init__(self, parent=None) -> None:
@@ -51,9 +70,9 @@ class AllowlistPanel(QWidget):
         self.del_btn = QPushButton("삭제")
         self.del_btn.setProperty("variant", "secondary")
         self.del_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        form.addWidget(self.text_input, 2)
-        form.addWidget(self.type_combo, 1)
-        form.addWidget(self.note_input, 2)
+        form.addWidget(self.text_input, 7)
+        form.addWidget(self.type_combo, 4)
+        form.addWidget(self.note_input, 3)
         form.addWidget(self.add_btn)
         form.addWidget(self.del_btn)
         layout.addWidget(form_card)
@@ -67,9 +86,9 @@ class AllowlistPanel(QWidget):
         self.table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         header = self.table.horizontalHeader()
-        header.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
-        header.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
+        header.setMinimumSectionSize(48)
         self.table.setColumnHidden(3, True)
+        _apply_allowlist_column_widths(self.table)
         layout.addWidget(self.table, stretch=1)
 
         self._add_cb = None
@@ -93,6 +112,11 @@ class AllowlistPanel(QWidget):
             self.table.setItem(row, 2, QTableWidgetItem(item.note or ""))
             self.table.setItem(row, 3, QTableWidgetItem(str(item.id)))
             self.table.setRowHeight(row, 34)
+        _apply_allowlist_column_widths(self.table)
+
+    def resizeEvent(self, event) -> None:  # noqa: N802
+        super().resizeEvent(event)
+        _apply_allowlist_column_widths(self.table)
 
     def _add(self) -> None:
         if self._add_cb and self.text_input.text().strip():

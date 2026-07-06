@@ -67,6 +67,8 @@ jobs:
             kvocab-guard/src/kvocab_core/config.py
             kvocab-guard/pyproject.toml
             kvocab-guard/release/info.txt
+            kvocab-guard/KVocabGuard.iss
+            kvocab-guard/release/complete.txt
 
   test:
     name: Tests
@@ -91,7 +93,7 @@ jobs:
         run: pytest tests/ -q
 
   build-windows:
-    name: Windows (portable)
+    name: Windows (Setup + portable)
     needs: [prepare, test]
     runs-on: windows-latest
     steps:
@@ -126,6 +128,22 @@ jobs:
             throw "PyInstaller output not found"
           }
 
+      - name: Install Inno Setup
+        run: choco install innosetup -y --no-progress
+
+      - name: Compile installer
+        shell: pwsh
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          New-Item -ItemType Directory -Force -Path release | Out-Null
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) { throw "ISCC.exe not found: $iscc" }
+          & $iscc "/DMyOutputDir=$PWD\release" "KVocabGuard.iss"
+          $setup = Get-ChildItem -Path release -Filter "KVocabGuard_v${env:VERSION}_Setup.exe" | Select-Object -First 1
+          if (-not $setup) { throw "Setup exe not found under release\" }
+          Write-Host "Built installer: $($setup.FullName)"
+
       - name: Zip portable onedir
         shell: pwsh
         run: |
@@ -137,7 +155,8 @@ jobs:
           name: windows-release
           retention-days: 1
           path: |
-            kvocab-guard/KVocabGuard-windows-x64-portable-v*.zip
+            release/KVocabGuard_v*_Setup.exe
+            KVocabGuard-windows-x64-portable-v*.zip
 
   publish:
     name: Publish → Korean_Edu_Voca_Check

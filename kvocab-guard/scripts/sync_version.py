@@ -12,9 +12,11 @@ ROOT = Path(__file__).resolve().parents[1]
 CONFIG_PATH = ROOT / "src" / "kvocab_core" / "config.py"
 PYPROJECT_PATH = ROOT / "pyproject.toml"
 INFO_PATH = ROOT / "release" / "info.txt"
+ISS_PATH = ROOT / "KVocabGuard.iss"
 
 _VERSION_RE = re.compile(r'^APP_VERSION\s*=\s*["\']([^"\']+)["\']', re.MULTILINE)
 _PYPROJECT_VERSION_RE = re.compile(r'^(version\s*=\s*")[^"]+(")', re.MULTILINE)
+_ISS_VERSION_RE = re.compile(r'(#define MyAppVersion ")[^"]+(")')
 
 
 def _fail(msg: str) -> None:
@@ -97,6 +99,23 @@ def sync_info_txt(version: str) -> None:
     INFO_PATH.write_text(render_info_txt(version), encoding="utf-8")
 
 
+def sync_iss(version: str) -> None:
+    if not ISS_PATH.exists():
+        _fail(f"{ISS_PATH} 가 없습니다.")
+    text = ISS_PATH.read_text(encoding="utf-8")
+    if not _ISS_VERSION_RE.search(text):
+        _fail(f"{ISS_PATH} 에 #define MyAppVersion 을 찾을 수 없습니다.")
+    ISS_PATH.write_text(_ISS_VERSION_RE.sub(rf"\g<1>{version}\2", text), encoding="utf-8")
+
+
+def read_iss_version() -> str:
+    text = ISS_PATH.read_text(encoding="utf-8")
+    m = _ISS_VERSION_RE.search(text)
+    if not m:
+        _fail(f"{ISS_PATH} 에 #define MyAppVersion 을 찾을 수 없습니다.")
+    return m.group(0).split('"')[1]
+
+
 def read_pyproject_version() -> str:
     text = PYPROJECT_PATH.read_text(encoding="utf-8")
     m = _PYPROJECT_VERSION_RE.search(text)
@@ -117,7 +136,8 @@ def sync_all(version: str) -> None:
     write_config_version(version)
     sync_pyproject(version)
     sync_info_txt(version)
-    print(f"sync_version: {version} → config.py, pyproject.toml, release/info.txt")
+    sync_iss(version)
+    print(f"sync_version: {version} → config.py, pyproject.toml, release/info.txt, KVocabGuard.iss")
 
 
 def check_all() -> None:
@@ -126,6 +146,7 @@ def check_all() -> None:
         "config.py": expected,
         "pyproject.toml": read_pyproject_version(),
         "release/info.txt": read_info_version(),
+        "KVocabGuard.iss": read_iss_version(),
     }
     bad = {k: v for k, v in versions.items() if v != expected}
     if bad:
@@ -153,7 +174,8 @@ def main() -> None:
     version = read_config_version()
     sync_pyproject(version)
     sync_info_txt(version)
-    print(f"sync_version: config.APP_VERSION={version} → pyproject.toml, release/info.txt")
+    sync_iss(version)
+    print(f"sync_version: config.APP_VERSION={version} → pyproject.toml, release/info.txt, KVocabGuard.iss")
 
 
 if __name__ == "__main__":

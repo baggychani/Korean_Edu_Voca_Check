@@ -40,7 +40,7 @@ python -m kvocab_core.analyzer_cli --level 2A --lesson 2-1 --text "저는 요리
 
 ## 배포
 
-GitHub Actions **Release** 워크플로를 수동 실행하면 Windows portable zip이 [Releases](https://github.com/baggychani/Korean_Edu_Voca_Check/releases)에 올라갑니다.
+GitHub Actions **Release** 워크플로를 수동 실행하면 Windows **설치형(Setup.exe)** 과 **portable zip** 이 [Releases](https://github.com/baggychani/Korean_Edu_Voca_Check/releases)에 올라갑니다.
 
 ```bash
 python scripts/sync_version.py --set 0.0.1   # 버전 일괄 동기화

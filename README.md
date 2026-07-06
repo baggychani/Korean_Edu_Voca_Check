@@ -17,9 +17,14 @@
 
 ## 다운로드와 실행
 
-1. [Releases](https://github.com/baggychani/Korean_Edu_Voca_Check/releases)에서 최신 `KVocabGuard-windows-x64-portable-v*.zip` 파일을 내려받습니다.
-2. zip 파일의 압축을 풉니다.
-3. 압축을 푼 폴더 안의 **`KVocabGuard.exe`** 를 실행합니다.
+[Releases](https://github.com/baggychani/Korean_Edu_Voca_Check/releases)에서 다음 중 하나를 받으면 됩니다.
+
+| 파일 | 설명 |
+| --- | --- |
+| `KVocabGuard_v*_Setup.exe` | **설치형** — 권장. 시작 메뉴·바탕화면 바로가기 생성 |
+| `KVocabGuard-windows-x64-portable-v*.zip` | **포터블** — 압축만 풀고 `KVocabGuard.exe` 실행 |
+
+설치형을 쓰면 `KVocabGuard` 이름으로 시작 메뉴에 등록됩니다. (바로가기 이름에는 버전이 붙지 않습니다.)
 
 Windows에서 처음 실행할 때 보안 안내가 나올 수 있습니다. 직접 내려받은 파일이 맞는지 확인한 뒤 실행해 주세요.
 

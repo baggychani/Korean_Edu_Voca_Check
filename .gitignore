@@ -14,8 +14,10 @@ __pycache__/
 # IDE
 .vscode/
 
-# Full textbook PDFs (large scans; glossary images stay in Word/)
+# Copyright-sensitive local assets (never ship in releases)
 textbooks/
+voca_pdf_image/
+Word/
 
 # OS
 .DS_Store

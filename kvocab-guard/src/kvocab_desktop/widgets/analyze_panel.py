@@ -7,6 +7,7 @@ from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
     QLabel,
+    QMessageBox,
     QPushButton,
     QTextEdit,
     QVBoxLayout,
@@ -45,12 +46,20 @@ class AnalyzePanel(QWidget):
         header_row.addWidget(hint)
         layout.addLayout(header_row)
 
+        input_frame = QFrame()
+        input_frame.setObjectName("inputFrame")
+        input_frame_layout = QVBoxLayout(input_frame)
+        input_frame_layout.setContentsMargins(1, 1, 1, 1)
+        input_frame_layout.setSpacing(0)
+
         self.text_edit = QTextEdit()
         self.text_edit.setObjectName("inputArea")
+        self.text_edit.setFrameShape(QFrame.Shape.NoFrame)
         self.text_edit.setPlaceholderText("검사할 한국어 텍스트를 붙여넣으세요…")
         self.text_edit.setMinimumHeight(117)
         self.text_edit.setMaximumHeight(180)
-        layout.addWidget(self.text_edit)
+        input_frame_layout.addWidget(self.text_edit)
+        layout.addWidget(input_frame)
 
         btn_wrap = QWidget()
         btn_wrap.setObjectName("analyzeActions")
@@ -241,4 +250,4 @@ class AnalyzePanel(QWidget):
                 self.set_text(doc.text)
             self.file_loaded.emit(path)
         except Exception as exc:
-            self.set_text(f"파일을 열 수 없습니다: {exc}")
+            QMessageBox.critical(self, "파일 열기 오류", f"파일을 열 수 없습니다:\n{exc}")

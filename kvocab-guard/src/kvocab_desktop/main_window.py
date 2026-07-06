@@ -15,7 +15,6 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from kvocab_core.config import APP_TITLE, APP_VERSION
 from kvocab_core.allowlist import (
     add_allowlist_item,
     delete_allowlist_item,
@@ -24,11 +23,12 @@ from kvocab_core.allowlist import (
     list_allowlist,
 )
 from kvocab_core.analyzer import Analyzer, invalidate_lexeme_index
+from kvocab_core.config import APP_TITLE, APP_VERSION
 from kvocab_core.database import get_counts, init_db
 from kvocab_core.dictionary import list_lexemes, search_lexemes_multi
 from kvocab_core.models import Lesson, Level, Lexeme
 from kvocab_core.schemas import AnalyzeRequest, Strictness
-from kvocab_core.seed import full_seed
+from kvocab_core.seed import full_seed, is_seed_current
 from kvocab_core.tools.import_xlsx import import_vocabulary_xlsx
 from kvocab_desktop.style import APP_STYLESHEET
 from kvocab_desktop.widgets.allowlist_panel import AllowlistPanel
@@ -167,7 +167,8 @@ class MainWindow(QMainWindow):
     def _ensure_seeded(self) -> None:
         with self.session_factory() as session:
             count = session.query(Lexeme).count()
-        if count == 0:
+            seed_current = is_seed_current(session) if count else False
+        if count == 0 or not seed_current:
             self._run_seed(silent=True)
 
     def _load_target_data(self) -> None:
@@ -346,7 +347,7 @@ class MainWindow(QMainWindow):
                 self,
                 "DB 초기화",
                 "DB를 초기화하고 seed를 다시 불러옵니다.\n"
-                "어휘·허용어 등 저장된 데이터가 모두 삭제됩니다.\n\n"
+                "어휘 데이터는 새로 불러오고, 사용자가 추가한 허용어는 보존됩니다.\n\n"
                 "정말 계속하시겠습니까?",
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
                 QMessageBox.StandardButton.No,
@@ -355,7 +356,7 @@ class MainWindow(QMainWindow):
                 return
         try:
             with self.session_factory() as session:
-                stats = full_seed(session)
+                stats = full_seed(session, preserve_allowlist=True)
             invalidate_lexeme_index()
             self._load_target_data()
             self._refresh_counts()

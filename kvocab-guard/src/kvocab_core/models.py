@@ -118,6 +118,16 @@ class CustomAllowlist(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
 
+class AppMeta(Base):
+    __tablename__ = "app_meta"
+
+    key: Mapped[str] = mapped_column(String(64), primary_key=True)
+    value: Mapped[str] = mapped_column(Text)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), onupdate=func.now()
+    )
+
+
 class UnmappedStaging(Base):
     """Rows that failed import validation — not used in analysis."""
 

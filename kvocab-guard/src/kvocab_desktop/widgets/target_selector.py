@@ -6,6 +6,7 @@ from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
     QLabel,
+    QListView,
     QVBoxLayout,
     QWidget,
 )
@@ -81,6 +82,14 @@ def _field_label(text: str) -> QLabel:
     return lbl
 
 
+def _setup_sidebar_combo(combo: QComboBox) -> None:
+    view = QListView()
+    view.setObjectName("comboPopup")
+    view.setSpacing(2)
+    combo.setView(view)
+    combo.setMaxVisibleItems(12)
+
+
 class TargetSelector(QWidget):
     changed = Signal()
 
@@ -95,6 +104,8 @@ class TargetSelector(QWidget):
         self.level_combo = QComboBox()
         self.lesson_combo = QComboBox()
         self.strictness_combo = QComboBox()
+        for combo in (self.level_combo, self.lesson_combo, self.strictness_combo):
+            _setup_sidebar_combo(combo)
         for code, label in _STRICTNESS_LABELS:
             self.strictness_combo.addItem(label, code)
         self.strictness_combo.setCurrentIndex(1)

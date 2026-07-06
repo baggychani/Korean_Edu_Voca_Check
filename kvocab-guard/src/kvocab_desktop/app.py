@@ -55,7 +55,7 @@ def _show_fatal_error(exc: BaseException, log_path: Path) -> None:
 
 
 def _run_smoke_analyze() -> None:
-    from kvocab_core.config import cover_image_path
+    from kvocab_core.config import LEVEL_META, cover_image_path
     from kvocab_core.morph import KoreanMorphAnalyzer
 
     analyzer = KoreanMorphAnalyzer()
@@ -65,9 +65,13 @@ def _run_smoke_analyze() -> None:
         raise RuntimeError(
             f"Kiwi smoke test failed: backend={analyzer.backend_name}, lemmas={lemmas}"
         )
-    cover = cover_image_path("1A")
-    if cover is None or not cover.exists():
-        raise RuntimeError("Bundled cover smoke test failed: covers/1A image not found")
+    missing_covers = [
+        level
+        for level in LEVEL_META
+        if (cover := cover_image_path(level)) is None or not cover.exists()
+    ]
+    if missing_covers:
+        raise RuntimeError(f"Bundled cover smoke test failed: missing {missing_covers}")
 
 
 def main() -> None:

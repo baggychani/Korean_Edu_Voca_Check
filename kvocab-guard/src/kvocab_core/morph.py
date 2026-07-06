@@ -9,6 +9,10 @@ _TOKEN_RE = re.compile(r"[가-힣A-Za-z0-9]+|[.,!?;:\"'()\[\]{}]")
 _VERBAL_PREFIXES = ("VV", "VA", "VX", "VCN", "XSV", "XSA")
 
 
+class MorphInitializationError(RuntimeError):
+    """Raised when the required Kiwi analyzer cannot be initialized."""
+
+
 @dataclass
 class MorphToken:
     surface: str
@@ -67,24 +71,27 @@ class KiwiMorphAnalyzer:
         return tokens
 
 
-_SHARED_BACKEND: KiwiMorphAnalyzer | RegexFallbackAnalyzer | None = None
-_SHARED_BACKEND_NAME = "fallback"
+_SHARED_BACKEND: KiwiMorphAnalyzer | None = None
+_SHARED_BACKEND_NAME = "unavailable"
 
 
-def _get_backend() -> tuple[KiwiMorphAnalyzer | RegexFallbackAnalyzer, str]:
+def _get_backend() -> tuple[KiwiMorphAnalyzer, str]:
     global _SHARED_BACKEND, _SHARED_BACKEND_NAME
     if _SHARED_BACKEND is None:
         try:
             _SHARED_BACKEND = KiwiMorphAnalyzer()
             _SHARED_BACKEND_NAME = "kiwi"
-        except Exception:
-            _SHARED_BACKEND = RegexFallbackAnalyzer()
-            _SHARED_BACKEND_NAME = "fallback"
+        except Exception as exc:
+            _SHARED_BACKEND_NAME = "unavailable"
+            raise MorphInitializationError(
+                "Kiwi 형태소 분석기를 초기화할 수 없습니다. "
+                "kiwipiepy와 kiwipiepy_model이 올바르게 설치/포함되어 있는지 확인하세요."
+            ) from exc
     return _SHARED_BACKEND, _SHARED_BACKEND_NAME
 
 
 class KoreanMorphAnalyzer:
-    """Kiwi 우선, 실패 시 정규식 fallback. 백엔드는 프로세스 내 공유(싱글톤)."""
+    """Kiwi 형태소 분석기. 백엔드는 프로세스 내 공유(싱글톤)."""
 
     def __init__(self) -> None:
         self._backend, self.backend_name = _get_backend()

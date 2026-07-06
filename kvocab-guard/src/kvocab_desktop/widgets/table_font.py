@@ -35,7 +35,7 @@ TABLE_ROW_HEIGHT = 38
 
 def configure_data_table(table) -> None:
     """어휘 사전·허용어 등 데이터 테이블 공통 레이아웃."""
-    from PySide6.QtWidgets import QAbstractItemView, QHeaderView, QTableWidget
+    from PySide6.QtWidgets import QAbstractItemView, QTableWidget
 
     if not isinstance(table, QTableWidget):
         return

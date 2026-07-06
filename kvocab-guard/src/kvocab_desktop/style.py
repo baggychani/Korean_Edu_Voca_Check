@@ -299,6 +299,11 @@ QLineEdit, QTextEdit, QPlainTextEdit {
     color: #111827;
     selection-background-color: #c5ddfa;
 }
+QFrame#inputFrame {
+    background: #ffffff;
+    border: 1px solid #cdd5e0;
+    border-radius: 10px;
+}
 QTextEdit QWidget,
 QPlainTextEdit QWidget,
 QTextEdit QAbstractScrollArea,
@@ -314,11 +319,11 @@ QTextEdit#inputArea {
     font-size: 14px;
     line-height: 1.5;
     background: #ffffff;
-    border: 1px solid #cdd5e0;
-    border-radius: 10px;
+    border: none;
+    border-radius: 9px;
 }
 QTextEdit#inputArea:focus {
-    border: 1px solid #1a6fdb;
+    border: none;
 }
 
 QComboBox {
@@ -338,6 +343,22 @@ QComboBox QAbstractItemView {
     selection-background-color: #e8f2fd;
     selection-color: #0f3460;
     padding: 4px;
+}
+QListView#comboPopup {
+    background: #222a38;
+    color: #edf1f7;
+    border: 1px solid #343f52;
+    padding: 6px;
+    outline: 0;
+}
+QListView#comboPopup::item {
+    min-height: 28px;
+    padding: 7px 10px;
+    border-radius: 6px;
+}
+QListView#comboPopup::item:selected {
+    background: #1d4f8f;
+    color: #ffffff;
 }
 
 /* ---------- Table ---------- */

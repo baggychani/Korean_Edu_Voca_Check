@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from kvocab_core.config import DEFAULT_DB_PATH
 from kvocab_core.models import (
+    AppMeta,
     Base,
     CustomAllowlist,
     Lesson,
@@ -50,15 +51,18 @@ def get_counts(session: Session) -> dict[str, int]:
     }
 
 
-def reset_db(session: Session) -> None:
-    for model in (
+def reset_db(session: Session, *, preserve_allowlist: bool = False) -> None:
+    models = [
         SurfaceForm,
         Occurrence,
         Lexeme,
         Lesson,
         Level,
-        CustomAllowlist,
         UnmappedStaging,
-    ):
+        AppMeta,
+    ]
+    if not preserve_allowlist:
+        models.append(CustomAllowlist)
+    for model in models:
         session.query(model).delete()
     session.commit()

@@ -41,6 +41,7 @@ class UpdateManager(QObject):
         return True
 
     def _on_check_finished(self, current_version: str, check_time: datetime) -> None:
+        success = False
         try:
             if self.reply is None:
                 return
@@ -48,6 +49,7 @@ class UpdateManager(QObject):
                 return
 
             data = json.loads(self.reply.readAll().data().decode("utf-8"))
+            success = True
             latest_tag = data.get("tag_name", "").strip()
             latest_version = latest_tag.lstrip("vV")
             html_url = data.get("html_url", GITHUB_RELEASE_URL)
@@ -55,10 +57,10 @@ class UpdateManager(QObject):
 
             if self._is_newer(current_version, latest_version):
                 self.update_available.emit(latest_version, html_url, body)
-        except (json.JSONDecodeError, KeyError, TypeError):
+        except (json.JSONDecodeError, KeyError, TypeError, UnicodeDecodeError):
             pass
         finally:
-            if self.on_success_callback:
+            if success and self.on_success_callback:
                 self.on_success_callback(check_time.isoformat())
             if self.reply is not None:
                 self.reply.deleteLater()

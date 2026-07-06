@@ -233,7 +233,7 @@ class Analyzer:
 
     def __init__(self, session: Session) -> None:
         self.session = session
-        self.morph = KoreanMorphAnalyzer()
+        self.morph: KoreanMorphAnalyzer | None = None
 
     def analyze(self, request: AnalyzeRequest) -> AnalyzeResult:
         lesson = (
@@ -260,7 +260,12 @@ class Analyzer:
                 text, spans, target_oi, allowlist, index, request
             )
         else:
-            morph = self.morph if request.use_morph else RegexFallbackAnalyzer()
+            if request.use_morph:
+                if self.morph is None:
+                    self.morph = KoreanMorphAnalyzer()
+                morph = self.morph
+            else:
+                morph = RegexFallbackAnalyzer()
             issues, debug_ignored, total_segs = self._analyze_chunk(
                 text, 0, text, target_oi, allowlist, index, request, morph
             )

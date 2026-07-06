@@ -16,7 +16,12 @@ from PySide6.QtWidgets import (
 )
 
 from kvocab_core.config import APP_TITLE
-from kvocab_core.allowlist import add_allowlist_item, delete_allowlist_item, list_allowlist
+from kvocab_core.allowlist import (
+    add_allowlist_item,
+    delete_allowlist_item,
+    ensure_default_allowlist,
+    list_allowlist,
+)
 from kvocab_core.analyzer import Analyzer, invalidate_lexeme_index
 from kvocab_core.database import get_counts, init_db
 from kvocab_core.dictionary import list_lexemes, search_lexemes_multi
@@ -134,6 +139,7 @@ class MainWindow(QMainWindow):
 
         self._wire_events()
         self._load_target_data()
+        self._ensure_default_characters()
         self._refresh_allowlist()
         self._refresh_counts()
         self._ensure_seeded()
@@ -149,6 +155,10 @@ class MainWindow(QMainWindow):
         self.dict_panel.set_search_callback(self._run_dictionary_search)
         self.allow_panel.set_callbacks(None, self._add_allow_item, self._delete_allow_item)
         self.data_panel.set_callbacks(self._run_seed, self._run_import_xlsx)
+
+    def _ensure_default_characters(self) -> None:
+        with self.session_factory() as session:
+            ensure_default_allowlist(session)
 
     def _ensure_seeded(self) -> None:
         with self.session_factory() as session:
@@ -333,6 +343,7 @@ class MainWindow(QMainWindow):
             invalidate_lexeme_index()
             self._load_target_data()
             self._refresh_counts()
+            self._refresh_allowlist()
             if not silent:
                 QMessageBox.information(
                     self, "Seed 완료", f"DB를 초기화하고 seed를 불러왔습니다.\n{stats}"

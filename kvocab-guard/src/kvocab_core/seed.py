@@ -11,6 +11,7 @@ from kvocab_core.config import (
     LEVEL_ORDER,
     compute_order_index,
 )
+from kvocab_core.allowlist import ensure_default_allowlist
 from kvocab_core.database import reset_db
 from kvocab_core.level_map_data import LEVEL_LESSONS
 from kvocab_core.models import Lesson, Level
@@ -81,6 +82,7 @@ def full_seed(session: Session, xlsx_path: Path | None = None) -> dict:
     seed_all_levels(session)
     path = xlsx_path or DEFAULT_SEED_XLSX
     stats = import_vocabulary_xlsx(session, path)
+    ensure_default_allowlist(session)
     return stats
 
 

@@ -35,7 +35,6 @@ def write_config_version(version: str) -> None:
     if not _VERSION_RE.search(text):
         _fail(f"{CONFIG_PATH} 에 APP_VERSION 할당이 없습니다.")
     text = _VERSION_RE.sub(f'APP_VERSION = "{version}"', text, count=1)
-    # APP_TITLE 은 f-string 이므로 config 재로드 시 자동 반영
     CONFIG_PATH.write_text(text, encoding="utf-8")
 
 

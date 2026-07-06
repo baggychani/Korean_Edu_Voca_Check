@@ -20,6 +20,7 @@ from kvocab_core.allowlist import (
     add_allowlist_item,
     delete_allowlist_item,
     ensure_default_allowlist,
+    is_protected_allowlist_norm,
     list_allowlist,
 )
 from kvocab_core.analyzer import Analyzer, invalidate_lexeme_index
@@ -299,7 +300,18 @@ class MainWindow(QMainWindow):
 
     def _delete_allow_item(self, item_id: int) -> None:
         with self.session_factory() as session:
-            delete_allowlist_item(session, item_id)
+            from kvocab_core.models import CustomAllowlist
+
+            item = session.get(CustomAllowlist, item_id)
+            if item and is_protected_allowlist_norm(item.normalized_text):
+                QMessageBox.information(
+                    self,
+                    "허용어 삭제",
+                    "교재 고정 등장인물은 삭제할 수 없습니다.",
+                )
+                return
+            if not delete_allowlist_item(session, item_id):
+                return
         self._refresh_allowlist()
 
     def _refresh_allowlist(self) -> None:
@@ -315,6 +327,7 @@ class MainWindow(QMainWindow):
                     normalized_text=i.normalized_text,
                     allow_type=i.allow_type,
                     note=i.note,
+                    is_protected=is_protected_allowlist_norm(i.normalized_text),
                 )
                 for i in items
             ]

@@ -33,6 +33,24 @@ _ROW_HEIGHT = 42
 _CELL_HPAD = 16
 _VERDICT_EXTRA_PAD = 28
 _SENTENCE_FLEX_WEIGHT = 0.85  # 표현·원형과 균등 분배 대비 15% 적음
+_STATUS_SORT_ORDER = {
+    "before_introduced": 0,
+    "unknown_high": 1,
+    "unknown_medium": 2,
+    "unknown_low": 3,
+    "ignored_pattern": 4,
+    "ignored_nnp": 4,
+    "custom_allowed": 5,
+    "allowed": 6,
+}
+
+
+def _issue_sort_key(issue: Issue) -> tuple[int, int, int]:
+    return (
+        _STATUS_SORT_ORDER.get(issue.status.value, 99),
+        issue.start,
+        issue.end,
+    )
 
 
 def _fixed_column_widths(table: QTableWidget) -> dict[int, int]:
@@ -329,10 +347,13 @@ class ResultsPanel(QWidget):
 
     def _filtered_issues(self) -> list[Issue]:
         if self._filter == "all":
-            return self._issues
+            return sorted(self._issues, key=_issue_sort_key)
         if self._filter == "allowed":
-            return self._allowed
-        return [i for i in self._issues if i.status.value == self._filter]
+            return sorted(self._allowed, key=_issue_sort_key)
+        return sorted(
+            [i for i in self._issues if i.status.value == self._filter],
+            key=_issue_sort_key,
+        )
 
     def _refresh_table(self) -> None:
         filtered = self._filtered_issues()

@@ -32,6 +32,10 @@ def _default_allowlist_norms() -> set[str]:
     return {normalize_key(name) for name in DEFAULT_CHARACTER_NAMES if normalize_key(name)}
 
 
+def is_protected_allowlist_norm(normalized_text: str) -> bool:
+    return normalized_text in _default_allowlist_norms()
+
+
 def get_allowlist_set(session: Session) -> set[str]:
     rows = session.query(CustomAllowlist.normalized_text).all()
     return {r[0] for r in rows} | _default_allowlist_norms()
@@ -64,6 +68,8 @@ def add_allowlist_item(
 def delete_allowlist_item(session: Session, item_id: int) -> bool:
     item = session.get(CustomAllowlist, item_id)
     if not item:
+        return False
+    if is_protected_allowlist_norm(item.normalized_text):
         return False
     session.delete(item)
     session.commit()

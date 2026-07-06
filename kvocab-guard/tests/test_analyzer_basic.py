@@ -108,6 +108,33 @@ def test_surface_shows_eojeol_not_stem(analyzer):
     assert by_lemma.get("바르다") == "발라"
 
 
+def test_single_word_surface_does_not_pull_neighboring_eojeol(analyzer):
+    with analyzer() as session:
+        result = Analyzer(session).analyze(
+            AnalyzeRequest(
+                text="제 이름은 김민수입니다. 김밥을 먹고 싶어요. 가뭄이 심해요.",
+                target_level="1A",
+                target_lesson="1-1",
+            )
+        )
+    by_lemma = {i.lemma: i.surface for i in result.issues + result.allowed}
+    assert by_lemma.get("이름") == "이름은"
+    assert by_lemma.get("먹다") == "먹고"
+    assert by_lemma.get("가뭄") == "가뭄이"
+
+
+def test_adnominal_verb_is_not_particle_stripped_to_stem_noun(analyzer):
+    with analyzer() as session:
+        result = Analyzer(session).analyze(
+            AnalyzeRequest(
+                text="축구 경기를 보는 건 재미있습니다.",
+                target_level="1A",
+                target_lesson="5-1",
+            )
+        )
+    assert not any(i.surface == "보는" and i.lemma == "보" for i in result.issues)
+
+
 def test_phrase_jeonhwa_bada_matches_expression(analyzer):
     from kvocab_core.analyzer import invalidate_lexeme_index
 

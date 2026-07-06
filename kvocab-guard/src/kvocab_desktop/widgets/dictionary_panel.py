@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
-    QAbstractItemView,
     QFrame,
     QHBoxLayout,
     QHeaderView,
@@ -17,7 +16,7 @@ from PySide6.QtWidgets import (
 
 from kvocab_core.normalization import lemma_gana_sort_key
 from kvocab_core.schemas import LexemeSearchResult
-from kvocab_desktop.widgets.table_font import app_default_font
+from kvocab_desktop.widgets.table_font import TABLE_ROW_HEIGHT, configure_data_table
 
 # 레벨·단원·페이지 고정, 뜻 2배, 표제어는 Stretch
 _COL_WIDTHS = {1: 84, 2: 72, 3: 80, 4: 336}
@@ -52,16 +51,8 @@ class DictionaryPanel(QWidget):
 
         self.table = QTableWidget(0, 5)
         self.table.setHorizontalHeaderLabels(["표제어", "레벨", "단원", "페이지", "뜻"])
-        self.table.setSortingEnabled(False)
-        self.table.verticalHeader().setVisible(False)
-        self.table.setAlternatingRowColors(True)
-        self.table.setShowGrid(False)
-        self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
-        self.table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
-        self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
-        self.table.setFont(app_default_font())
+        configure_data_table(self.table)
         header = self.table.horizontalHeader()
-        header.setStretchLastSection(False)
         header.setSortIndicatorShown(True)
         header.setSectionsClickable(True)
         header.sectionClicked.connect(self._on_header_clicked)
@@ -160,7 +151,7 @@ class DictionaryPanel(QWidget):
                 if col == 0:
                     item.setData(Qt.ItemDataRole.UserRole, r)
                 self.table.setItem(row, col, item)
-            self.table.setRowHeight(row, 38)
+            self.table.setRowHeight(row, TABLE_ROW_HEIGHT)
 
     def _on_select(self) -> None:
         row = self.table.currentRow()

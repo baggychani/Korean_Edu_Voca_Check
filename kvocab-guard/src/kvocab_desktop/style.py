@@ -305,8 +305,8 @@ QTextEdit#inputArea {
 QComboBox {
     background: #ffffff;
     border: 1px solid #cdd5e0;
-    border-radius: 8px;
-    padding: 8px 12px;
+    border-radius: 10px;
+    padding: 10px 12px;
     min-height: 18px;
 }
 QComboBox::drop-down {

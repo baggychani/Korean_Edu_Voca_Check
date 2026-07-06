@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
-    QAbstractItemView,
     QComboBox,
     QFrame,
     QHBoxLayout,
@@ -15,6 +14,8 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+
+from kvocab_desktop.widgets.table_font import TABLE_ROW_HEIGHT, configure_data_table
 
 _ALLOW_TYPE_LABELS = [
     ("global", "전체"),
@@ -57,7 +58,7 @@ class AllowlistPanel(QWidget):
         form_card.setObjectName("card")
         form = QHBoxLayout(form_card)
         form.setContentsMargins(16, 14, 16, 14)
-        form.setSpacing(8)
+        form.setSpacing(10)
         self.text_input = QLineEdit()
         self.text_input.setPlaceholderText("허용할 표현")
         self.type_combo = QComboBox()
@@ -70,6 +71,7 @@ class AllowlistPanel(QWidget):
         self.del_btn = QPushButton("삭제")
         self.del_btn.setProperty("variant", "secondary")
         self.del_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.del_btn.setEnabled(False)
         form.addWidget(self.text_input, 7)
         form.addWidget(self.type_combo, 4)
         form.addWidget(self.note_input, 3)
@@ -79,12 +81,7 @@ class AllowlistPanel(QWidget):
 
         self.table = QTableWidget(0, 4)
         self.table.setHorizontalHeaderLabels(["텍스트", "유형", "메모", "ID"])
-        self.table.verticalHeader().setVisible(False)
-        self.table.setAlternatingRowColors(True)
-        self.table.setShowGrid(False)
-        self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
-        self.table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
-        self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        configure_data_table(self.table)
         header = self.table.horizontalHeader()
         header.setMinimumSectionSize(48)
         self.table.setColumnHidden(3, True)
@@ -96,6 +93,7 @@ class AllowlistPanel(QWidget):
         self.add_btn.clicked.connect(self._add)
         self.del_btn.clicked.connect(self._delete)
         self.text_input.returnPressed.connect(self._add)
+        self.table.itemSelectionChanged.connect(self._on_selection_changed)
 
     def set_callbacks(self, refresh, add, delete) -> None:
         self._add_cb = add
@@ -110,9 +108,12 @@ class AllowlistPanel(QWidget):
                 row, 1, QTableWidgetItem(type_labels.get(item.allow_type, item.allow_type))
             )
             self.table.setItem(row, 2, QTableWidgetItem(item.note or ""))
-            self.table.setItem(row, 3, QTableWidgetItem(str(item.id)))
-            self.table.setRowHeight(row, 34)
+            id_item = QTableWidgetItem(str(item.id))
+            id_item.setData(Qt.ItemDataRole.UserRole, item.is_protected)
+            self.table.setItem(row, 3, id_item)
+            self.table.setRowHeight(row, TABLE_ROW_HEIGHT)
         _apply_allowlist_column_widths(self.table)
+        self._on_selection_changed()
 
     def resizeEvent(self, event) -> None:  # noqa: N802
         super().resizeEvent(event)
@@ -127,6 +128,15 @@ class AllowlistPanel(QWidget):
             )
             self.text_input.clear()
             self.note_input.clear()
+
+    def _on_selection_changed(self) -> None:
+        row = self.table.currentRow()
+        if row < 0:
+            self.del_btn.setEnabled(False)
+            return
+        id_item = self.table.item(row, 3)
+        protected = bool(id_item and id_item.data(Qt.ItemDataRole.UserRole))
+        self.del_btn.setEnabled(not protected)
 
     def _delete(self) -> None:
         row = self.table.currentRow()

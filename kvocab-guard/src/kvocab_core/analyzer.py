@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from kvocab_core.allowlist import get_allowlist_set
 from kvocab_core.config import INCLUDE_DRAFT_DATA, USABLE_REVIEW_STATUSES
-from kvocab_core.matching import build_eojeol_match_keys, split_eojeol
+from kvocab_core.matching import build_eojeol_match_keys, is_particle_lemma, split_eojeol
 from kvocab_core.models import Lesson, Lexeme, SurfaceForm
 from kvocab_core.morph import KoreanMorphAnalyzer, RegexFallbackAnalyzer
 from kvocab_core.normalization import is_ignored_pattern, normalize_key
@@ -84,6 +84,15 @@ def _content_lookup_key(lemma: str) -> str:
 
 def _segments_in_span(segs: list[MatchSegment], start: int, end: int) -> list[MatchSegment]:
     return [s for s in segs if s.start >= start and s.end <= end]
+
+
+def _content_segments(segs: list[MatchSegment]) -> list[MatchSegment]:
+    return [s for s in segs if not is_particle_lemma(s.lemma)]
+
+
+def _single_eojeol_key_matches_segments(key: str, segs: list[MatchSegment]) -> bool:
+    content = _content_segments(segs)
+    return bool(content) and segment_key(content) == key
 
 
 _SENTENCE_END = re.compile(r"[.!?。\n]+")
@@ -386,7 +395,7 @@ class Analyzer:
 
         consumed = [False] * len(segs)
 
-        for size in range(min(self.MAX_EXPR_SEGS, len(segs)), 0, -1):
+        for size in range(min(self.MAX_EXPR_SEGS, len(segs)), 1, -1):
             for i in range(len(segs) - size + 1):
                 if any(consumed[i : i + size]):
                     continue
@@ -397,7 +406,10 @@ class Analyzer:
                 lex = index.lookup(key)
                 if not lex:
                     continue
-                start, end = chunk[0].start, chunk[-1].end
+                content = _content_segments(chunk)
+                if not content:
+                    continue
+                start, end = content[0].start, content[-1].end
                 if is_covered(start, end):
                     for k in range(i, i + size):
                         consumed[k] = True
@@ -543,6 +555,10 @@ class Analyzer:
             span = (start, end)
             if span in seen or not index.lookup(key):
                 continue
+            if j - i == 1 and key != normalize_key(eojeol[i]):
+                sub_segs = _segments_in_span(all_segs, start, end)
+                if sub_segs and not _single_eojeol_key_matches_segments(key, sub_segs):
+                    continue
             seen.add(span)
             yield key, start, end
 

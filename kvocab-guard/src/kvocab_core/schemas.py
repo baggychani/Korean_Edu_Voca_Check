@@ -112,6 +112,7 @@ class AllowlistItem(BaseModel):
     normalized_text: str
     allow_type: str
     note: str | None = None
+    is_protected: bool = False
 
 
 class ExtractedPage(BaseModel):

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""아이콘 PNG/ICO를 정사각형 중앙 배치로 다시 만듭니다."""
+"""아이콘 PNG/ICO를 원본 로고에서 다시 만듭니다."""
 
 from __future__ import annotations
 
@@ -8,8 +8,8 @@ from pathlib import Path
 from PIL import Image
 
 ROOT = Path(__file__).resolve().parents[1]
-SRC = ROOT / "src" / "kvocab_desktop" / "assets" / "app_icon.png"
-OUT_PNG = SRC
+SRC = ROOT / "assets" / "logo_source.png"
+OUT_PNG = ROOT / "src" / "kvocab_desktop" / "assets" / "app_icon.png"
 OUT_ICO = ROOT / "src" / "kvocab_desktop" / "assets" / "app_icon.ico"
 CANVAS = 1024
 ICO_SIZES = (16, 24, 32, 48, 64, 128, 256)
@@ -34,12 +34,10 @@ def rebuild() -> None:
     final = canvas.resize((CANVAS, CANVAS), Image.Resampling.LANCZOS)
     final.save(OUT_PNG)
 
-    ico_images = [final.resize((size, size), Image.Resampling.LANCZOS) for size in ICO_SIZES]
-    ico_images[0].save(
+    final.save(
         OUT_ICO,
         format="ICO",
         sizes=[(s, s) for s in ICO_SIZES],
-        append_images=ico_images[1:],
     )
     print(f"rebuild_icon: wrote {OUT_PNG} and {OUT_ICO}")
 

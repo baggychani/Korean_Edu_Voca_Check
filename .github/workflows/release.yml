@@ -111,6 +111,15 @@ jobs:
 
       - run: pip install -e ".[dev]" pyinstaller
 
+      - name: Rebuild app icon
+        shell: pwsh
+        run: |
+          if (Test-Path "assets/logo_source.png") {
+            python scripts/rebuild_icon.py
+          } else {
+            Write-Host "logo_source.png not found; using committed app_icon assets"
+          }
+
       - name: PyInstaller (onedir)
         shell: pwsh
         working-directory: kvocab-guard
@@ -119,8 +128,6 @@ jobs:
             --icon=src/kvocab_desktop/assets/app_icon.ico `
             --name=KVocabGuard `
             --version-file=release/info.txt `
-            --collect-all PySide6 `
-            --collect-all kiwipiepy `
             --add-data "data/seed;data/seed" `
             --add-data "src/kvocab_desktop/assets;kvocab_desktop/assets" `
             --paths src `
@@ -128,6 +135,18 @@ jobs:
           if (-not (Test-Path "dist\KVocabGuard\KVocabGuard.exe")) {
             throw "PyInstaller output not found"
           }
+
+      - name: Smoke test packaged app
+        shell: pwsh
+        working-directory: kvocab-guard
+        run: |
+          $exe = "$PWD\dist\KVocabGuard\KVocabGuard.exe"
+          $p = Start-Process -FilePath $exe -PassThru
+          Start-Sleep -Seconds 5
+          if ($p.HasExited) {
+            throw "Packaged app exited during smoke test with code $($p.ExitCode)"
+          }
+          Stop-Process -Id $p.Id -Force
 
       - name: Install Inno Setup
         run: choco install innosetup -y --no-progress
@@ -171,7 +190,8 @@ jobs:
         with:
           tag_name: ${{ needs.prepare.outputs.tag }}
           name: 한국어교육 단어 검사기 ${{ needs.prepare.outputs.version }}
-          generate_release_notes: true
+          body_path: README.md
+          generate_release_notes: false
           files: |
             kvocab-guard/release/KVocabGuard_v*_Setup.exe
             kvocab-guard/KVocabGuard-windows-x64-portable-v*.zip

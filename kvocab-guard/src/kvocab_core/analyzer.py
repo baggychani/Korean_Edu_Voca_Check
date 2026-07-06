@@ -29,7 +29,7 @@ from kvocab_core.token_units import (
 )
 from kvocab_core.unknown_risk import classify_unknown
 
-_morph_for_index = KoreanMorphAnalyzer()
+_morph_for_index: KoreanMorphAnalyzer | None = None
 
 
 class LexemeIndex:
@@ -76,6 +76,9 @@ def invalidate_lexeme_index() -> None:
 
 def _content_lookup_key(lemma: str) -> str:
     """표제어 구(전화를 받다) → 내용어 key(전화받다) for phrase matching."""
+    global _morph_for_index
+    if _morph_for_index is None:
+        _morph_for_index = KoreanMorphAnalyzer()
     if _morph_for_index.backend_name != "kiwi":
         return ""
     segs = build_match_segments(_morph_for_index.analyze(lemma))

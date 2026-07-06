@@ -1,7 +1,12 @@
 from __future__ import annotations
 
-import os
 from pathlib import Path
+
+from kvocab_core.runtime_paths import (
+    bundled_data_dir,
+    repo_root,
+    writable_data_dir,
+)
 
 # =============================================================================
 # App info & update
@@ -84,13 +89,13 @@ LEVEL_META: dict[str, dict[str, str | int]] = {
 }
 
 PACKAGE_ROOT = Path(__file__).resolve().parent.parent.parent
-REPO_ROOT = PACKAGE_ROOT.parent
+REPO_ROOT = repo_root()
 VOCABULARY_DIR = REPO_ROOT / "vocabulary"
 TEXTBOOKS_DIR = REPO_ROOT / "textbooks"
 VOCA_PDF_IMAGE_DIR = REPO_ROOT / "voca_pdf_image"
 COVERS_DIR = REPO_ROOT / "covers"
-DEFAULT_DATA_DIR = Path(os.environ.get("KVOCAB_DATA_DIR", PACKAGE_ROOT / "data"))
-DEFAULT_DB_PATH = DEFAULT_DATA_DIR / "kvocab.db"
+DEFAULT_DATA_DIR = bundled_data_dir()
+DEFAULT_DB_PATH = writable_data_dir() / "kvocab.db"
 
 # 범용 시드 파일명 (레벨 무관). 없으면 구버전 파일명으로 fallback.
 _SEED_CANDIDATES = (

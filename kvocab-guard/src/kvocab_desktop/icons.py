@@ -1,14 +1,13 @@
 from __future__ import annotations
 
-from pathlib import Path
+from kvocab_core.runtime_paths import desktop_assets_dir
 
-from PySide6.QtGui import QIcon
-
-_ASSETS_DIR = Path(__file__).resolve().parent / "assets"
-APP_ICON_PATH = _ASSETS_DIR / "app_icon.ico"
+APP_ICON_PATH = desktop_assets_dir() / "app_icon.ico"
 
 
-def app_icon() -> QIcon:
+def app_icon():
+    from PySide6.QtGui import QIcon
+
     if APP_ICON_PATH.exists():
         return QIcon(str(APP_ICON_PATH))
     return QIcon()

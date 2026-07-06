@@ -140,7 +140,7 @@ jobs:
             kvocab-guard/KVocabGuard-windows-x64-portable-v*.zip
 
   publish:
-    name: Publish → KoreanVoca
+    name: Publish → Korean_Edu_Voca_Check
     needs: [prepare, build-windows]
     runs-on: ubuntu-latest
     defaults:

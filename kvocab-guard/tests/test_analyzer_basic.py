@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from kvocab_core.analyzer import Analyzer, split_sentence_spans
+from kvocab_core.analyzer import Analyzer, _sentence_at, split_sentence_spans
 from kvocab_core.config import DEFAULT_SEED_XLSX
 from kvocab_core.database import init_db
 from kvocab_core.models import Lexeme
@@ -75,6 +75,13 @@ def test_split_sentence_spans():
     assert text[spans[0][0] : spans[0][1]] == "안녕하세요."
     assert text[spans[1][0] : spans[1][1]] == "저는 학생입니다!"
     assert text[spans[2][0] : spans[2][1]] == "한국어를 공부해요."
+
+
+def test_sentence_at_stops_when_issue_span_includes_period():
+    text = "통장에 돈이 없어요. 책은 가격이 비싸요. 가끔이 들었습니다!"
+    start = text.index("가격")
+    end = text.index("요.", start) + len("요.")
+    assert _sentence_at(text, start, end) == "책은 가격이 비싸요."
 
 
 def test_parallel_multi_sentence_finds_issues(analyzer):
@@ -165,6 +172,126 @@ def test_unlisted_noun_hada_phrase_is_not_reported_as_unknown_expression(analyze
             )
         )
     assert not any(i.normalized == "밥하다" for i in result.issues)
+
+
+def test_unlisted_hada_derivative_does_not_fall_back_to_hada(analyzer):
+    from kvocab_core.analyzer import invalidate_lexeme_index
+
+    invalidate_lexeme_index()
+    with analyzer() as session:
+        result = Analyzer(session).analyze(
+            AnalyzeRequest(
+                text="채용하다 수정하다 보강하다",
+                target_level="1A",
+                target_lesson="1-1",
+            )
+        )
+    by_surface = {i.surface: i.lemma for i in result.issues + result.allowed}
+    assert by_surface.get("보강하다") == "보강하다"
+    assert by_surface.get("수정하다") != "하다"
+    assert not any(i.surface in {"보강하다", "수정하다"} and i.lemma == "하다" for i in result.issues)
+
+
+def test_auxiliary_hada_after_eoya_is_not_reported(analyzer):
+    from kvocab_core.analyzer import invalidate_lexeme_index
+
+    invalidate_lexeme_index()
+    with analyzer() as session:
+        result = Analyzer(session).analyze(
+            AnalyzeRequest(
+                text="팁을 보강해야 합니다.",
+                target_level="2A",
+                target_lesson="1-1",
+            )
+        )
+    items = result.issues + result.allowed
+    assert any(i.lemma == "보강하다" for i in items)
+    assert not any(i.surface == "합니다" and i.lemma == "하다" for i in items)
+
+
+def test_expression_sentence_does_not_eat_next_sentence(analyzer):
+    from kvocab_core.analyzer import invalidate_lexeme_index
+
+    invalidate_lexeme_index()
+    text = (
+        "안녕하세요? 제 이름은 크리스티아노 호날두이며 축구선수입니다. "
+        "통장에 돈이 없어요. 책은 가격이 비싸요. 가끔이 들었습니다!"
+    )
+    with analyzer() as session:
+        result = Analyzer(session).analyze(
+            AnalyzeRequest(
+                text=text,
+                target_level="2A",
+                target_lesson="1-1",
+            )
+        )
+    matched = [i for i in result.issues + result.allowed if i.lemma == "가격이 비싸다"]
+    assert matched
+    assert matched[0].sentence == "책은 가격이 비싸요."
+
+
+def test_known_single_syllable_word_is_checked_before_skip(analyzer):
+    from kvocab_core.analyzer import invalidate_lexeme_index
+
+    invalidate_lexeme_index()
+    with analyzer() as session:
+        result = Analyzer(session).analyze(
+            AnalyzeRequest(
+                text="이거 뭐예요?",
+                target_level="1A",
+                target_lesson="1-1",
+            )
+        )
+    matched = [i for i in result.issues + result.allowed if i.lemma == "뭐"]
+    assert matched
+    assert matched[0].surface == "뭐예요"
+
+
+def test_display_surface_strips_trailing_comma(analyzer):
+    from kvocab_core.analyzer import invalidate_lexeme_index
+
+    invalidate_lexeme_index()
+    with analyzer() as session:
+        result = Analyzer(session).analyze(
+            AnalyzeRequest(
+                text="안녕하세요, 리센느 원이입니다.",
+                target_level="1A",
+                target_lesson="1-1",
+            )
+        )
+    matched = [i for i in result.issues + result.allowed if i.lemma == "안녕하세요"]
+    assert matched
+    assert matched[0].surface == "안녕하세요"
+
+
+def test_standalone_single_syllable_unknown_noun_is_reported(analyzer):
+    from kvocab_core.analyzer import invalidate_lexeme_index
+
+    invalidate_lexeme_index()
+    with analyzer() as session:
+        result = Analyzer(session).analyze(
+            AnalyzeRequest(
+                text="레몬을 즙 짜서 먹어요.",
+                target_level="2B",
+                target_lesson="10-1",
+            )
+        )
+    assert any(i.surface == "즙" and i.lemma == "즙" for i in result.issues)
+
+
+def test_one_syllable_unknown_stems_inside_noise_are_not_reported(analyzer):
+    from kvocab_core.analyzer import invalidate_lexeme_index
+
+    invalidate_lexeme_index()
+    with analyzer() as session:
+        result = Analyzer(session).analyze(
+            AnalyzeRequest(
+                text="띠요잉띠요잉 우리는 완전",
+                target_level="2B",
+                target_lesson="10-1",
+            )
+        )
+    assert not any(i.lemma == "띠다" for i in result.issues + result.allowed)
 
 
 def test_no_substring_bang_hak(analyzer):

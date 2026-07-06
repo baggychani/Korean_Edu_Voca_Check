@@ -98,7 +98,9 @@ def _single_eojeol_key_matches_segments(key: str, segs: list[MatchSegment]) -> b
     return bool(content) and segment_key(content) == key
 
 
+_SENTENCE_BOUNDARY_CHARS = ".!?。\n"
 _SENTENCE_END = re.compile(r"[.!?。\n]+")
+_TRAILING_SURFACE_PUNCT = ".,!?;:，。！？、…"
 _PARALLEL_MIN_SENTENCES = 2
 _PARALLEL_MIN_CHARS = 120
 _MAX_PARALLEL_WORKERS = 8
@@ -155,10 +157,15 @@ def _shift_issues(issues: list[Issue], offset: int, full_text: str) -> list[Issu
 
 
 def _sentence_at(text: str, start: int, end: int) -> str:
-    left = max(text.rfind(ch, 0, start) for ch in ".?!\n")
-    right_candidates = [text.find(ch, end) for ch in ".?!\n"]
-    right_candidates = [r for r in right_candidates if r >= 0]
-    right = min(right_candidates) + 1 if right_candidates else len(text)
+    start = max(0, min(start, len(text)))
+    end = max(start, min(end, len(text)))
+    left = max(text.rfind(ch, 0, start) for ch in _SENTENCE_BOUNDARY_CHARS)
+    if end > 0 and text[end - 1] in _SENTENCE_BOUNDARY_CHARS:
+        right = end
+    else:
+        right_candidates = [text.find(ch, end) for ch in _SENTENCE_BOUNDARY_CHARS]
+        right_candidates = [r for r in right_candidates if r >= 0]
+        right = min(right_candidates) + 1 if right_candidates else len(text)
     return text[left + 1 : right].strip()
 
 
@@ -224,8 +231,18 @@ def _display_surface(
     for i, eo_start in enumerate(eo_starts):
         eo_end = eo_ends[i]
         if eo_start <= start < eo_end and end <= eo_end:
-            return eojeol[i].rstrip(".!?")
-    return text[start:end]
+            return eojeol[i].rstrip(_TRAILING_SURFACE_PUNCT)
+    return text[start:end].rstrip(_TRAILING_SURFACE_PUNCT)
+
+
+def _should_skip_unmatched_segment(seg: MatchSegment, surface: str) -> bool:
+    if should_skip_standalone(seg):
+        if len(normalize_key(seg.lemma)) <= 1 and normalize_key(surface) == normalize_key(seg.lemma):
+            return False
+        return True
+    if seg.surface != surface and len(normalize_key(seg.surface)) <= 1 and seg.lemma.endswith("다"):
+        return True
+    return False
 
 
 class Analyzer:
@@ -444,11 +461,6 @@ class Analyzer:
         for i, seg in enumerate(segs):
             if consumed[i] or is_covered(seg.start, seg.end):
                 continue
-            if is_ignored_pattern(seg.surface):
-                continue
-            if should_skip_standalone(seg):
-                continue
-
             norm = normalize_key(seg.lemma)
             if not norm:
                 continue
@@ -461,6 +473,9 @@ class Analyzer:
                 eo_starts=eo_starts,
                 eo_ends=eo_ends,
             )
+
+            if is_ignored_pattern(surface) or is_ignored_pattern(seg.surface):
+                continue
 
             if norm in allowlist:
                 issues.append(
@@ -493,6 +508,9 @@ class Analyzer:
                         end=seg.end,
                     )
                 )
+                continue
+
+            if _should_skip_unmatched_segment(seg, surface):
                 continue
 
             status, severity, reason, suggestions = classify_unknown(

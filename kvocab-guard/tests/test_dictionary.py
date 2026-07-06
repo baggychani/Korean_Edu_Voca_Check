@@ -4,7 +4,7 @@ import pytest
 
 from kvocab_core.config import DEFAULT_SEED_XLSX
 from kvocab_core.database import init_db
-from kvocab_core.dictionary import search_lexemes
+from kvocab_core.dictionary import search_lexemes, search_lexemes_multi
 from kvocab_core.models import Lesson
 from kvocab_core.seed import full_seed
 
@@ -53,3 +53,11 @@ def test_search_password_expression(db_with_seed):
     r = results[0]
     assert r.first_page == 92
     assert r.first_lesson == "5-2"
+
+
+def test_search_multi_terms(db_with_seed):
+    with db_with_seed() as session:
+        results = search_lexemes_multi(session, "가입하다, 컵")
+    lemmas = {r.lemma for r in results}
+    assert "가입하다" in lemmas
+    assert "컵" in lemmas

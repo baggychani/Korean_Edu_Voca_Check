@@ -3,6 +3,19 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
+# =============================================================================
+# App info & update
+# =============================================================================
+APP_VERSION = "1.0.0"
+APP_TITLE = f"한국어교육 단어 검사기 {APP_VERSION}"
+
+GITHUB_OWNER = "baggychani"
+GITHUB_REPO = "KoreanVoca"
+GITHUB_RELEASE_URL = f"https://github.com/{GITHUB_OWNER}/{GITHUB_REPO}/releases"
+GITHUB_API_LATEST_RELEASE = (
+    f"https://api.github.com/repos/{GITHUB_OWNER}/{GITHUB_REPO}/releases/latest"
+)
+
 # level code -> global learning order prefix
 LEVEL_ORDER: dict[str, int] = {
     "1A": 101,
@@ -25,6 +38,12 @@ LEVEL_META: dict[str, dict[str, str | int]] = {
         "title_ko": "서울대 한국어 1A",
         "title_en": "SNU Korean 1A",
         "sort_order": 1,
+    },
+    "1B": {
+        "series": "서울대 한국어",
+        "title_ko": "서울대 한국어 1B",
+        "title_en": "SNU Korean 1B",
+        "sort_order": 2,
     },
     "2A": {
         "series": "서울대 한국어",
@@ -55,6 +74,12 @@ LEVEL_META: dict[str, dict[str, str | int]] = {
         "title_ko": "서울대 한국어 4A",
         "title_en": "SNU Korean 4A",
         "sort_order": 7,
+    },
+    "4B": {
+        "series": "서울대 한국어",
+        "title_ko": "서울대 한국어 4B",
+        "title_en": "SNU Korean 4B",
+        "sort_order": 8,
     },
 }
 

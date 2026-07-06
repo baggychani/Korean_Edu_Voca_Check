@@ -39,9 +39,7 @@ def _fixed_column_widths(table: QTableWidget) -> dict[int, int]:
     regular = table.fontMetrics()
     bold = QFontMetrics(bold_font(table))
 
-    verdict_w = max(
-        bold.horizontalAdvance(text) for text in STATUS_LABELS_KO.values()
-    )
+    verdict_w = max(bold.horizontalAdvance(text) for text in STATUS_LABELS_KO.values())
     verdict_w = max(verdict_w, bold.horizontalAdvance("판정"))
 
     levels = (
@@ -114,9 +112,7 @@ def _sentence_display(table: QTableWidget, text: str) -> tuple[str, bool]:
     width = table.columnWidth(_COL_SENTENCE) - _CELL_HPAD
     if width <= 0:
         return text, False
-    elided = table.fontMetrics().elidedText(
-        text, Qt.TextElideMode.ElideRight, width
-    )
+    elided = table.fontMetrics().elidedText(text, Qt.TextElideMode.ElideRight, width)
     return elided, elided != text
 
 
@@ -198,7 +194,7 @@ class ResultsPanel(QWidget):
         self.filter_buttons: dict[str, QPushButton] = {}
         for key, label in [
             ("all", "전체"),
-            ("allowed", "사용 가능"),
+            ("allowed", "👍 사용 가능"),
             ("before_introduced", "⚠️ 아직 이릅니다"),
             ("unknown_high", "교재 외 · 높음"),
             ("unknown_medium", "교재 외 · 검토"),
@@ -226,9 +222,7 @@ class ResultsPanel(QWidget):
         table_section.addWidget(self.completion_label)
 
         self.table = QTableWidget(0, 5)
-        self.table.setHorizontalHeaderLabels(
-            ["표현", "원형", "판정", "처음 나오는 곳", "문장"]
-        )
+        self.table.setHorizontalHeaderLabels(["표현", "원형", "판정", "처음 나오는 곳", "문장"])
         self.table.verticalHeader().setVisible(False)
         self.table.setAlternatingRowColors(True)
         self.table.setShowGrid(False)

@@ -29,6 +29,8 @@ from kvocab_core.token_units import (
 )
 from kvocab_core.unknown_risk import classify_unknown
 
+_morph_for_index = KoreanMorphAnalyzer()
+
 
 class LexemeIndex:
     def __init__(self, session: Session) -> None:
@@ -41,6 +43,9 @@ class LexemeIndex:
             if lex.review_status not in USABLE_REVIEW_STATUSES:
                 continue
             self.by_norm_lemma[lex.normalized_lemma] = lex
+            content_key = _content_lookup_key(lex.lemma)
+            if content_key and content_key != lex.normalized_lemma:
+                self.by_norm_surface.setdefault(content_key, lex)
         for sf, lex in (
             session.query(SurfaceForm, Lexeme)
             .join(Lexeme, SurfaceForm.lexeme_id == Lexeme.id)
@@ -67,6 +72,14 @@ def get_lexeme_index(session: Session) -> LexemeIndex:
 def invalidate_lexeme_index() -> None:
     global _INDEX_CACHE
     _INDEX_CACHE = None
+
+
+def _content_lookup_key(lemma: str) -> str:
+    """표제어 구(전화를 받다) → 내용어 key(전화받다) for phrase matching."""
+    if _morph_for_index.backend_name != "kiwi":
+        return ""
+    segs = build_match_segments(_morph_for_index.analyze(lemma))
+    return segment_key(segs) if segs else ""
 
 
 def _segments_in_span(segs: list[MatchSegment], start: int, end: int) -> list[MatchSegment]:
@@ -250,9 +263,7 @@ class Analyzer:
             )
         ]
         allowed_items = [
-            i
-            for i in issues
-            if i.status in (IssueStatus.allowed, IssueStatus.custom_allowed)
+            i for i in issues if i.status in (IssueStatus.allowed, IssueStatus.custom_allowed)
         ]
 
         max_known_oi, max_known_display = None, ""

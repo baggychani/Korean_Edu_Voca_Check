@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from kvocab_core.matching import is_particle_lemma
 from kvocab_core.morph import MorphToken, restore_dictionary_form
 from kvocab_core.normalization import normalize_key
 
@@ -59,18 +60,6 @@ def build_match_segments(tokens: list[MorphToken]) -> list[MatchSegment]:
     while i < n:
         tok = tokens[i]
 
-        # 명사 + 하 → …하다
-        if (
-            tok.pos.startswith(("NNG", "NNB", "NR", "NP", "XR"))
-            and i + 1 < n
-            and tokens[i + 1].surface == "하"
-            and tokens[i + 1].pos.startswith(("XSV", "XSA"))
-        ):
-            lemma = tok.lemma + "하다"
-            segs.append(MatchSegment(tok.surface + "하", lemma, tok.start, tokens[i + 1].end))
-            i += 2
-            continue
-
         if _skip_pos(tok.pos):
             i += 1
             continue
@@ -98,7 +87,23 @@ def build_match_segments(tokens: list[MorphToken]) -> list[MatchSegment]:
             continue
 
         if tok.pos.startswith(
-            ("VV", "VA", "VX", "VCN", "NNG", "NNB", "NR", "NP", "MM", "MAG", "MAJ", "IC", "XR")
+            (
+                "VV",
+                "VA",
+                "VX",
+                "VCN",
+                "XSV",
+                "XSA",
+                "NNG",
+                "NNB",
+                "NR",
+                "NP",
+                "MM",
+                "MAG",
+                "MAJ",
+                "IC",
+                "XR",
+            )
         ):
             lemma = restore_dictionary_form(tok.lemma or tok.surface, tok.pos)
             segs.append(MatchSegment(tok.surface, lemma, tok.start, tok.end))
@@ -107,7 +112,8 @@ def build_match_segments(tokens: list[MorphToken]) -> list[MatchSegment]:
 
 
 def segment_key(parts: list[MatchSegment]) -> str:
-    return normalize_key("".join(p.lemma for p in parts))
+    """내용어 원형만 이어 붙인 lookup key (조사 제외)."""
+    return normalize_key("".join(p.lemma for p in parts if not is_particle_lemma(p.lemma)))
 
 
 def should_skip_standalone(seg: MatchSegment) -> bool:

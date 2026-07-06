@@ -108,6 +108,38 @@ def test_surface_shows_eojeol_not_stem(analyzer):
     assert by_lemma.get("바르다") == "발라"
 
 
+def test_phrase_jeonhwa_bada_matches_expression(analyzer):
+    from kvocab_core.analyzer import invalidate_lexeme_index
+
+    invalidate_lexeme_index()
+    with analyzer() as session:
+        result = Analyzer(session).analyze(
+            AnalyzeRequest(
+                text="황정민이야 나~ 전화 받어~",
+                target_level="1B",
+                target_lesson="12-1",
+            )
+        )
+    matched = [i for i in result.issues + result.allowed if i.lemma == "전화를 받다"]
+    assert matched
+    assert matched[0].surface == "전화 받어~"
+
+
+def test_unlisted_noun_hada_phrase_is_not_reported_as_unknown_expression(analyzer):
+    from kvocab_core.analyzer import invalidate_lexeme_index
+
+    invalidate_lexeme_index()
+    with analyzer() as session:
+        result = Analyzer(session).analyze(
+            AnalyzeRequest(
+                text="밥 해 좀",
+                target_level="1A",
+                target_lesson="1-1",
+            )
+        )
+    assert not any(i.normalized == "밥하다" for i in result.issues)
+
+
 def test_no_substring_bang_hak(analyzer):
     with analyzer() as session:
         lex = session.query(Lexeme).filter(Lexeme.normalized_lemma == "방").one_or_none()

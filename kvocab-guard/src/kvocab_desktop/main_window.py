@@ -15,10 +15,11 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from kvocab_core.config import APP_TITLE
 from kvocab_core.allowlist import add_allowlist_item, delete_allowlist_item, list_allowlist
 from kvocab_core.analyzer import Analyzer, invalidate_lexeme_index
 from kvocab_core.database import get_counts, init_db
-from kvocab_core.dictionary import list_lexemes, search_lexemes
+from kvocab_core.dictionary import list_lexemes, search_lexemes_multi
 from kvocab_core.models import Lesson, Level, Lexeme
 from kvocab_core.schemas import AnalyzeRequest, Strictness
 from kvocab_core.seed import full_seed
@@ -48,9 +49,6 @@ class AnalyzeWorker(QThread):
             self.finished_ok.emit(result)
         except Exception as exc:
             self.failed.emit(str(exc))
-
-
-APP_TITLE = "한국어교육 단어 검사기 1.0.0"
 
 
 class MainWindow(QMainWindow):
@@ -144,9 +142,7 @@ class MainWindow(QMainWindow):
     def _wire_events(self) -> None:
         self.analyze_panel.analyze_requested.connect(self._run_analyze)
         self.analyze_panel.clear_requested.connect(self._on_analyze_clear)
-        self.results_panel.sentence_highlight_requested.connect(
-            self.analyze_panel.highlight_issue
-        )
+        self.results_panel.sentence_highlight_requested.connect(self.analyze_panel.highlight_issue)
         self.results_panel.issue_selected.connect(self.analyze_panel.highlight_issue)
         self.results_panel.allow_requested.connect(self._add_allow)
         self.results_panel.lemma_lookup_requested.connect(self._lookup_lemma_in_dictionary)
@@ -222,7 +218,7 @@ class MainWindow(QMainWindow):
         with self.session_factory() as session:
             target_order_index = self._target_order_index()
             if query:
-                results = search_lexemes(
+                results = search_lexemes_multi(
                     session,
                     query,
                     target_order_index=target_order_index,
@@ -254,9 +250,7 @@ class MainWindow(QMainWindow):
         else:
             label = text
 
-        target = (
-            f"{self.target_selector.target_level} {self.target_selector.target_lesson}"
-        )
+        target = f"{self.target_selector.target_level} {self.target_selector.target_lesson}"
         detail = ""
         if first_seen:
             detail = f"\n교재상 처음 등장: {first_seen}\n"

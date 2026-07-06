@@ -1,0 +1,165 @@
+# workflow_dispatch 로 수동 실행 → 테스트 → Windows 빌드 → GitHub Release
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "릴리스 버전 (비우면 config.APP_VERSION 사용, 예: 1.0.1)"
+        required: false
+        type: string
+      create_github_release:
+        description: "baggychani/KoreanVoca 에 Release·바이너리 업로드"
+        required: false
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: kvocab-guard
+
+jobs:
+  prepare:
+    name: Version sync & validate
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.out.outputs.version }}
+      tag: ${{ steps.out.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Resolve version
+        id: out
+        shell: bash
+        run: |
+          if [[ -n "${{ inputs.version }}" ]]; then
+            VER="${{ inputs.version }}"
+          else
+            VER=$(python -c "import re; t=open('src/kvocab_core/config.py',encoding='utf-8').read(); print(re.search(r'APP_VERSION = \"([^\"]+)\"', t).group(1))")
+          fi
+          echo "version=${VER}" >> "$GITHUB_OUTPUT"
+          echo "tag=v${VER}" >> "$GITHUB_OUTPUT"
+          echo "Resolved version: ${VER}"
+
+      - name: Sync version files
+        run: python scripts/sync_version.py --set "${{ steps.out.outputs.version }}"
+
+      - name: Verify version consistency
+        run: python scripts/sync_version.py --check
+
+      - name: Upload synced metadata
+        uses: actions/upload-artifact@v4
+        with:
+          name: version-metadata
+          retention-days: 1
+          path: |
+            kvocab-guard/src/kvocab_core/config.py
+            kvocab-guard/pyproject.toml
+            kvocab-guard/release/info.txt
+
+  test:
+    name: Tests
+    needs: prepare
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e ".[dev]"
+      - name: Install Qt runtime (headless Linux)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libegl1 libgl1 libglib2.0-0 libdbus-1-3 libxkbcommon-x11-0 \
+            libxcb-cursor0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 \
+            libxcb-render-util0 libxcb-shape0
+      - name: Pytest
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: pytest tests/ -q
+
+  build-windows:
+    name: Windows (portable)
+    needs: [prepare, test]
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download synced version files
+        uses: actions/download-artifact@v4
+        with:
+          name: version-metadata
+          path: kvocab-guard
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - run: pip install -e ".[dev]" pyinstaller
+
+      - name: PyInstaller (onedir)
+        shell: pwsh
+        run: |
+          pyinstaller --noconfirm --windowed `
+            --icon=src/kvocab_desktop/assets/app_icon.ico `
+            --name=KVocabGuard `
+            --version-file=release/info.txt `
+            --collect-all PySide6 `
+            --collect-all kiwipiepy `
+            --add-data "data/seed;data/seed" `
+            --add-data "src/kvocab_desktop/assets;kvocab_desktop/assets" `
+            -m kvocab_desktop.app
+          if (-not (Test-Path "dist\KVocabGuard\KVocabGuard.exe")) {
+            throw "PyInstaller output not found"
+          }
+
+      - name: Zip portable onedir
+        shell: pwsh
+        run: |
+          Compress-Archive -Path "dist\KVocabGuard\*" `
+            -DestinationPath "KVocabGuard-windows-x64-portable-v${{ needs.prepare.outputs.version }}.zip" -Force
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-release
+          retention-days: 1
+          path: |
+            kvocab-guard/KVocabGuard-windows-x64-portable-v*.zip
+
+  publish:
+    name: Publish → KoreanVoca
+    needs: [prepare, build-windows]
+    runs-on: ubuntu-latest
+    if: >-
+      needs.prepare.result == 'success' &&
+      needs.build-windows.result == 'success' &&
+      inputs.create_github_release
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: windows-release
+          path: dist-upload
+
+      - name: List release files
+        run: find dist-upload -type f | sort
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.prepare.outputs.tag }}
+          name: 한국어교육 단어 검사기 ${{ needs.prepare.outputs.version }}
+          generate_release_notes: true
+          files: dist-upload/**/*
+          fail_on_unmatched_files: true

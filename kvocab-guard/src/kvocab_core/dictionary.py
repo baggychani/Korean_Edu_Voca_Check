@@ -105,6 +105,51 @@ def search_lexemes(
     return results
 
 
+def search_lexemes_multi(
+    session: Session,
+    query: str,
+    *,
+    target_level: str | None = None,
+    target_lesson: str | None = None,
+    target_order_index: int | None = None,
+    limit: int = 50,
+) -> list[LexemeSearchResult]:
+    """쉼표로 구분된 여러 표제어를 각각 검색해 합친다."""
+    terms = [part.strip() for part in query.split(",") if part.strip()]
+    if not terms:
+        return []
+    if len(terms) == 1:
+        return search_lexemes(
+            session,
+            terms[0],
+            target_level=target_level,
+            target_lesson=target_lesson,
+            target_order_index=target_order_index,
+            limit=limit,
+        )
+
+    seen: set[str] = set()
+    merged: list[LexemeSearchResult] = []
+    per_term = max(limit // len(terms), 10)
+    for term in terms:
+        for row in search_lexemes(
+            session,
+            term,
+            target_level=target_level,
+            target_lesson=target_lesson,
+            target_order_index=target_order_index,
+            limit=per_term,
+        ):
+            key = row.normalized_lemma or row.lemma
+            if key in seen:
+                continue
+            seen.add(key)
+            merged.append(row)
+            if len(merged) >= limit:
+                return merged
+    return merged
+
+
 def list_lexemes(
     session: Session,
     *,

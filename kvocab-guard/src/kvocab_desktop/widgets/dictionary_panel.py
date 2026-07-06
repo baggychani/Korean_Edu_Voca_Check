@@ -15,11 +15,15 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from kvocab_core.normalization import lemma_gana_sort_key
 from kvocab_core.schemas import LexemeSearchResult
 from kvocab_desktop.widgets.table_font import app_default_font
 
-# 교재·단원·페이지 고정, 뜻 2배(168→336), 표제어는 Stretch로 남은 공간
-_COL_WIDTHS = {1: 72, 2: 72, 3: 80, 4: 336}
+# 레벨·단원·페이지 고정, 뜻 2배, 표제어는 Stretch
+_COL_WIDTHS = {1: 84, 2: 72, 3: 80, 4: 336}
+_COL_LEMMA = 0
+_COL_LEVEL = 1
+_SORTABLE_COLUMNS = frozenset({_COL_LEMMA, _COL_LEVEL})
 
 
 class DictionaryPanel(QWidget):
@@ -39,7 +43,7 @@ class DictionaryPanel(QWidget):
         search_layout.setContentsMargins(16, 14, 16, 14)
         search_layout.setSpacing(10)
         self.search_input = QLineEdit()
-        self.search_input.setPlaceholderText("표제어 검색  (예: 가입하다)")
+        self.search_input.setPlaceholderText("표제어 검색")
         self.search_btn = QPushButton("검색")
         self.search_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         search_layout.addWidget(self.search_input, stretch=1)
@@ -47,7 +51,8 @@ class DictionaryPanel(QWidget):
         layout.addWidget(search_card)
 
         self.table = QTableWidget(0, 5)
-        self.table.setHorizontalHeaderLabels(["표제어", "교재", "단원", "페이지", "뜻"])
+        self.table.setHorizontalHeaderLabels(["표제어", "레벨", "단원", "페이지", "뜻"])
+        self.table.setSortingEnabled(False)
         self.table.verticalHeader().setVisible(False)
         self.table.setAlternatingRowColors(True)
         self.table.setShowGrid(False)
@@ -57,11 +62,18 @@ class DictionaryPanel(QWidget):
         self.table.setFont(app_default_font())
         header = self.table.horizontalHeader()
         header.setStretchLastSection(False)
+        header.setSortIndicatorShown(True)
+        header.setSectionsClickable(True)
+        header.sectionClicked.connect(self._on_header_clicked)
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         for col in (1, 2, 3, 4):
             header.setSectionResizeMode(col, QHeaderView.ResizeMode.Fixed)
             header.resizeSection(col, _COL_WIDTHS[col])
         layout.addWidget(self.table, stretch=1)
+
+        self._sort_column = _COL_LEMMA
+        self._sort_ascending = True
+        self._update_sort_indicator()
 
         detail_card = QFrame()
         detail_card.setObjectName("card")
@@ -82,6 +94,7 @@ class DictionaryPanel(QWidget):
         self.search_input.returnPressed.connect(lambda: self.search_requested())
         self.table.itemSelectionChanged.connect(self._on_select)
         self._results: list[LexemeSearchResult] = []
+        self._display_results: list[LexemeSearchResult] = []
         self._search_callback = None
 
     def set_search_callback(self, cb) -> None:
@@ -97,20 +110,66 @@ class DictionaryPanel(QWidget):
 
     def show_results(self, results: list[LexemeSearchResult]) -> None:
         self._results = results
-        self.table.setRowCount(len(results))
-        for row, r in enumerate(results):
+        self._render_table()
+
+    def _on_header_clicked(self, column: int) -> None:
+        if column not in _SORTABLE_COLUMNS:
+            self._update_sort_indicator()
+            return
+        if self._sort_column == column:
+            self._sort_ascending = not self._sort_ascending
+        else:
+            self._sort_column = column
+            self._sort_ascending = True
+        self._update_sort_indicator()
+        self._render_table()
+
+    def _update_sort_indicator(self) -> None:
+        order = (
+            Qt.SortOrder.AscendingOrder if self._sort_ascending else Qt.SortOrder.DescendingOrder
+        )
+        self.table.horizontalHeader().setSortIndicator(self._sort_column, order)
+
+    def _sorted_results(self) -> list[LexemeSearchResult]:
+        rows = list(self._results)
+        if self._sort_column == _COL_LEMMA:
+            rows.sort(
+                key=lambda r: lemma_gana_sort_key(r.lemma),
+                reverse=not self._sort_ascending,
+            )
+        elif self._sort_column == _COL_LEVEL:
+            rows.sort(
+                key=lambda r: (
+                    r.first_order_index if r.first_order_index is not None else 999_999,
+                    r.first_level or "",
+                ),
+                reverse=not self._sort_ascending,
+            )
+        return rows
+
+    def _render_table(self) -> None:
+        rows = self._sorted_results()
+        self._display_results = rows
+        self.table.setRowCount(len(rows))
+        for row, r in enumerate(rows):
             level = r.first_level or "-"
             lesson = r.first_lesson or "-"
             page = f"p.{r.first_page}" if r.first_page else "-"
             for col, val in enumerate([r.lemma, level, lesson, page, r.gloss_en or ""]):
-                self.table.setItem(row, col, QTableWidgetItem(val))
+                item = QTableWidgetItem(val)
+                if col == 0:
+                    item.setData(Qt.ItemDataRole.UserRole, r)
+                self.table.setItem(row, col, item)
             self.table.setRowHeight(row, 38)
 
     def _on_select(self) -> None:
         row = self.table.currentRow()
-        if row < 0 or row >= len(self._results):
+        if row < 0 or row >= len(self._display_results):
             return
-        r = self._results[row]
+        item = self.table.item(row, 0)
+        r = item.data(Qt.ItemDataRole.UserRole) if item else self._display_results[row]
+        if not r:
+            r = self._display_results[row]
         verdict = r.verdict_label_ko or "-"
         verdict_color = "#16a34a" if verdict == "사용 가능" else "#dc2626"
         if r.other_occurrences:

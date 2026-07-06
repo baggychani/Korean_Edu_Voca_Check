@@ -6,7 +6,7 @@ from dataclasses import dataclass
 _TOKEN_RE = re.compile(r"[가-힣A-Za-z0-9]+|[.,!?;:\"'()\[\]{}]")
 
 # 용언류: 사전형 복원 시 "다"를 붙인다 (먹 -> 먹다)
-_VERBAL_PREFIXES = ("VV", "VA", "VX", "VCN")
+_VERBAL_PREFIXES = ("VV", "VA", "VX", "VCN", "XSV", "XSA")
 
 
 @dataclass

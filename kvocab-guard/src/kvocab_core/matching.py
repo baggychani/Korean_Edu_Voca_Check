@@ -106,3 +106,11 @@ def build_eojeol_match_keys(eojeol: list[str], max_n: int = 5) -> list[tuple[str
 
 def exact_token_match(token_norm: str, known: set[str]) -> bool:
     return token_norm in known
+
+
+_PARTICLE_LEMMAS = frozenset(_EOJEOL_PARTICLE_SUFFIXES)
+
+
+def is_particle_lemma(lemma: str) -> bool:
+    """조사·접속 조사 등 내용어 매칭 key에서 제외할 형태소."""
+    return lemma in _PARTICLE_LEMMAS

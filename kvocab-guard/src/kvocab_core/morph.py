@@ -1,10 +1,7 @@
 from __future__ import annotations
 
-import os
 import re
 from dataclasses import dataclass
-
-from kvocab_core.runtime_paths import is_frozen
 
 _TOKEN_RE = re.compile(r"[가-힣A-Za-z0-9]+|[.,!?;:\"'()\[\]{}]")
 
@@ -77,10 +74,6 @@ _SHARED_BACKEND_NAME = "fallback"
 def _get_backend() -> tuple[KiwiMorphAnalyzer | RegexFallbackAnalyzer, str]:
     global _SHARED_BACKEND, _SHARED_BACKEND_NAME
     if _SHARED_BACKEND is None:
-        if is_frozen() and os.environ.get("KVOCAB_ENABLE_FROZEN_KIWI") != "1":
-            _SHARED_BACKEND = RegexFallbackAnalyzer()
-            _SHARED_BACKEND_NAME = "fallback"
-            return _SHARED_BACKEND, _SHARED_BACKEND_NAME
         try:
             _SHARED_BACKEND = KiwiMorphAnalyzer()
             _SHARED_BACKEND_NAME = "kiwi"

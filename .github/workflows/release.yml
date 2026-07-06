@@ -128,6 +128,8 @@ jobs:
             --icon=src/kvocab_desktop/assets/app_icon.ico `
             --name=KVocabGuard `
             --version-file=release/info.txt `
+            --collect-all kiwipiepy `
+            --collect-all kiwipiepy_model `
             --add-data "data/seed;data/seed" `
             --add-data "src/kvocab_desktop/assets;kvocab_desktop/assets" `
             --paths src `
@@ -141,6 +143,10 @@ jobs:
         working-directory: kvocab-guard
         run: |
           $exe = "$PWD\dist\KVocabGuard\KVocabGuard.exe"
+          & $exe --smoke-analyze
+          if ($LASTEXITCODE -ne 0) {
+            throw "Packaged Kiwi smoke test failed with code $LASTEXITCODE"
+          }
           $p = Start-Process -FilePath $exe -PassThru
           Start-Sleep -Seconds 5
           if ($p.HasExited) {

@@ -54,6 +54,18 @@ def _show_fatal_error(exc: BaseException, log_path: Path) -> None:
     QMessageBox.critical(None, "한국어교육 단어 검사기 실행 오류", message)
 
 
+def _run_smoke_analyze() -> None:
+    from kvocab_core.morph import KoreanMorphAnalyzer
+
+    analyzer = KoreanMorphAnalyzer()
+    tokens = analyzer.analyze("축구 경기를 보는 건 재미있습니다.")
+    lemmas = [token.lemma for token in tokens]
+    if analyzer.backend_name != "kiwi" or "보다" not in lemmas:
+        raise RuntimeError(
+            f"Kiwi smoke test failed: backend={analyzer.backend_name}, lemmas={lemmas}"
+        )
+
+
 def main() -> None:
     app = QApplication(sys.argv)
     app.setApplicationName("KVocabGuard")
@@ -103,6 +115,9 @@ def main() -> None:
 
 if __name__ == "__main__":
     try:
+        if "--smoke-analyze" in sys.argv:
+            _run_smoke_analyze()
+            raise SystemExit(0)
         main()
     except Exception as exc:
         log_path = _write_crash_log(exc)

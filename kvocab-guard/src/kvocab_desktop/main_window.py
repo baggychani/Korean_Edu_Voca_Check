@@ -15,7 +15,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from kvocab_core.config import APP_TITLE
+from kvocab_core.config import APP_TITLE, APP_VERSION
 from kvocab_core.allowlist import (
     add_allowlist_item,
     delete_allowlist_item,
@@ -105,8 +105,11 @@ class MainWindow(QMainWindow):
         self.target_selector = TargetSelector()
         sb_layout.addWidget(self.target_selector)
         sb_layout.addStretch()
+        version_lbl = QLabel(f"v{APP_VERSION}")
+        version_lbl.setObjectName("sidebarVersion")
         copyright_lbl = QLabel("© 2026 Bae Gichan. All rights reserved.")
         copyright_lbl.setObjectName("sidebarCopyright")
+        sb_layout.addWidget(version_lbl)
         sb_layout.addWidget(copyright_lbl)
         main_layout.addWidget(sidebar)
 

@@ -13,25 +13,34 @@ OUT_PNG = ROOT / "src" / "kvocab_desktop" / "assets" / "app_icon.png"
 OUT_ICO = ROOT / "src" / "kvocab_desktop" / "assets" / "app_icon.ico"
 CANVAS = 1024
 ICO_SIZES = (16, 24, 32, 48, 64, 128, 256)
+TARGET_FILL = 0.82
+VISUAL_X_NUDGE = 0.035
+VISUAL_Y_NUDGE = -0.015
+
+
+def _alpha_bbox(image: Image.Image, threshold: int = 8) -> tuple[int, int, int, int] | None:
+    alpha = image.getchannel("A")
+    mask = alpha.point(lambda value: 255 if value > threshold else 0)
+    return mask.getbbox()
 
 
 def rebuild() -> None:
     src = Image.open(SRC).convert("RGBA")
-    bbox = src.getbbox()
+    bbox = _alpha_bbox(src)
     if not bbox:
         raise SystemExit("app_icon.png has no visible pixels")
 
     cropped = src.crop(bbox)
     cw, ch = cropped.size
-    side = max(cw, ch)
-    margin = max(16, int(side * 0.06))
-    square = side + margin * 2
-    canvas = Image.new("RGBA", (square, square), (0, 0, 0, 0))
-    x = (square - cw) // 2
-    y = (square - ch) // 2
-    canvas.paste(cropped, (x, y), cropped)
+    scale = (CANVAS * TARGET_FILL) / max(cw, ch)
+    icon_w = max(1, round(cw * scale))
+    icon_h = max(1, round(ch * scale))
+    icon = cropped.resize((icon_w, icon_h), Image.Resampling.LANCZOS)
 
-    final = canvas.resize((CANVAS, CANVAS), Image.Resampling.LANCZOS)
+    final = Image.new("RGBA", (CANVAS, CANVAS), (0, 0, 0, 0))
+    x = round((CANVAS - icon_w) / 2 + CANVAS * VISUAL_X_NUDGE)
+    y = round((CANVAS - icon_h) / 2 + CANVAS * VISUAL_Y_NUDGE)
+    final.paste(icon, (x, y), icon)
     final.save(OUT_PNG)
 
     final.save(

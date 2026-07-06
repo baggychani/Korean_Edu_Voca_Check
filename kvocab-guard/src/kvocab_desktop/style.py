@@ -75,10 +75,15 @@ QLabel#sidebarFieldLabel {
 QWidget#coverPreview {
     background: transparent;
 }
+QLabel#sidebarVersion {
+    font-size: 10px;
+    color: #6d7a91;
+    padding-top: 8px;
+}
 QLabel#sidebarCopyright {
     font-size: 9px;
     color: #566278;
-    padding-top: 6px;
+    padding-top: 2px;
 }
 QFrame#sidebar QComboBox {
     background: #202838;
@@ -286,7 +291,7 @@ QPushButton[variant="chip"]:checked {
 }
 
 /* ---------- Inputs ---------- */
-QLineEdit, QTextEdit {
+QLineEdit, QTextEdit, QPlainTextEdit {
     background: #ffffff;
     border: 1px solid #cdd5e0;
     border-radius: 10px;
@@ -294,12 +299,26 @@ QLineEdit, QTextEdit {
     color: #111827;
     selection-background-color: #c5ddfa;
 }
-QLineEdit:focus, QTextEdit:focus {
+QTextEdit QWidget,
+QPlainTextEdit QWidget,
+QTextEdit QAbstractScrollArea,
+QPlainTextEdit QAbstractScrollArea,
+QTextEdit::viewport,
+QPlainTextEdit::viewport {
+    background: #ffffff;
+}
+QLineEdit:focus, QTextEdit:focus, QPlainTextEdit:focus {
     border: 1px solid #1a6fdb;
 }
 QTextEdit#inputArea {
     font-size: 14px;
     line-height: 1.5;
+    background: #ffffff;
+    border: 1px solid #cdd5e0;
+    border-radius: 10px;
+}
+QTextEdit#inputArea:focus {
+    border: 1px solid #1a6fdb;
 }
 
 QComboBox {

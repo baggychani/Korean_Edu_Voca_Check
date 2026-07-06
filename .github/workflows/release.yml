@@ -131,6 +131,7 @@ jobs:
             --collect-all kiwipiepy `
             --collect-all kiwipiepy_model `
             --add-data "data/seed;data/seed" `
+            --add-data "../covers;covers" `
             --add-data "src/kvocab_desktop/assets;kvocab_desktop/assets" `
             --paths src `
             src/kvocab_desktop/app.py

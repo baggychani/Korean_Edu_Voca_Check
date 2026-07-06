@@ -12,7 +12,7 @@ from kvocab_core.runtime_paths import (
 # App info & update
 # =============================================================================
 APP_VERSION = "0.0.0"
-APP_TITLE = f"한국어교육 단어 검사기 {APP_VERSION}"
+APP_TITLE = "한국어교육 단어 검사기"
 
 GITHUB_OWNER = "baggychani"
 GITHUB_REPO = "Korean_Edu_Voca_Check"

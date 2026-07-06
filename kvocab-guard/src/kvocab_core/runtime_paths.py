@@ -55,7 +55,7 @@ def desktop_assets_dir() -> Path:
 
 def repo_root() -> Path:
     if is_frozen():
-        return app_install_root()
+        return bundle_root()
     return bundle_root().parent
 
 

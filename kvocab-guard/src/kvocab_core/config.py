@@ -7,7 +7,7 @@ from pathlib import Path
 # App info & update
 # =============================================================================
 APP_VERSION = "0.0.0"
-APP_TITLE = "한국어교육 단어 검사기"
+APP_TITLE = f"한국어교육 단어 검사기 {APP_VERSION}"
 
 GITHUB_OWNER = "baggychani"
 GITHUB_REPO = "KoreanVoca"

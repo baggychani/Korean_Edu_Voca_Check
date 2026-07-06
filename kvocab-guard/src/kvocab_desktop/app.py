@@ -25,7 +25,7 @@ from PySide6.QtCore import QTimer, QUrl  # noqa: E402
 from PySide6.QtGui import QDesktopServices  # noqa: E402
 from PySide6.QtWidgets import QApplication, QDialog, QMessageBox  # noqa: E402
 
-from kvocab_core.config import APP_VERSION  # noqa: E402
+from kvocab_core.config import APP_INTERNAL_NAME, APP_TITLE, APP_VERSION  # noqa: E402
 from kvocab_desktop.icons import app_icon  # noqa: E402
 from kvocab_desktop.main_window import MainWindow  # noqa: E402
 from kvocab_desktop.prefs import load_prefs, save_prefs  # noqa: E402
@@ -72,7 +72,8 @@ def _run_smoke_analyze() -> None:
 
 def main() -> None:
     app = QApplication(sys.argv)
-    app.setApplicationName("KVocabGuard")
+    app.setApplicationName(APP_INTERNAL_NAME)
+    app.setApplicationDisplayName(APP_TITLE)
     app.setOrganizationName("Bae Gichan")
     app.setFont(app_default_font())
     app.setApplicationVersion(APP_VERSION)

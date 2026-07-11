@@ -5,7 +5,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "릴리스 버전 (비우면 config.APP_VERSION 사용, 예: 0.0.1)"
+        description: "릴리스 버전 (비우면 config.APP_VERSION 사용, 예: 1.0.1)"
         required: false
         type: string
       create_github_release:
@@ -199,7 +199,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ needs.prepare.outputs.tag }}
-          name: 한국어교육 단어 검사기 ${{ needs.prepare.outputs.version }}
+          name: 한국어교육 단어 레벨 검사기 ${{ needs.prepare.outputs.version }}
           body_path: README.md
           generate_release_notes: false
           files: |

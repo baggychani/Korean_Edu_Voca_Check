@@ -36,8 +36,8 @@ def _analyze(factory, text: str, lesson: str) -> list:
 
 def test_yori_allowed_at_2_1(analyzer):
     issues = _analyze(analyzer, "저는 요리하는 걸 좋아해요.", "2-1")
-    high = [i for i in issues if i.status == IssueStatus.unknown_high and "요리" in i.surface]
-    assert not high
+    unknown = [i for i in issues if i.status == IssueStatus.unknown and "요리" in i.surface]
+    assert not unknown
 
 
 def test_gaiip_before_introduced_at_2_1(analyzer):
@@ -56,10 +56,10 @@ def test_gaiip_allowed_at_2_2(analyzer):
     assert not before
 
 
-def test_jeonghap_unknown_high(analyzer):
+def test_jeonghap_unknown(analyzer):
     issues = _analyze(analyzer, "정합적인 설명입니다.", "2-1")
-    high = [i for i in issues if i.status == IssueStatus.unknown_high]
-    norms = {i.normalized for i in high}
+    unknown = [i for i in issues if i.status == IssueStatus.unknown]
+    norms = {i.normalized for i in unknown}
     assert "정합적" in norms or "정합적인" in norms
 
 
@@ -262,6 +262,24 @@ def test_display_surface_strips_trailing_comma(analyzer):
     matched = [i for i in result.issues + result.allowed if i.lemma == "안녕하세요"]
     assert matched
     assert matched[0].surface == "안녕하세요"
+
+
+def test_equivalent_annyeong_uses_textbook_annyeonghaseyo(analyzer):
+    from kvocab_core.analyzer import invalidate_lexeme_index
+
+    invalidate_lexeme_index()
+    with analyzer() as session:
+        result = Analyzer(session).analyze(
+            AnalyzeRequest(
+                text="안녕",
+                target_level="1A",
+                target_lesson="1-1",
+            )
+        )
+    matched = [i for i in result.issues + result.allowed if i.lemma == "안녕"]
+    assert matched
+    assert matched[0].equivalent_lemma == "안녕하세요"
+    assert matched[0].status == IssueStatus.allowed
 
 
 def test_standalone_single_syllable_unknown_noun_is_reported(analyzer):

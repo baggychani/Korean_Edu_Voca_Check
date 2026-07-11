@@ -8,8 +8,14 @@ __pycache__/
 
 # Generated / local data
 *.db
+*.db-shm
+*.db-wal
 .env
 .env.*
+.codex_tmp/
+kvocab-guard/build/
+kvocab-guard/dist/
+kvocab-guard/KVocabGuardPreview.spec
 
 # IDE
 .vscode/

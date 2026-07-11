@@ -1,5 +1,5 @@
-#define MyAppName "한국어교육 단어 검사기"
-#define MyAppVersion "0.0.0"
+#define MyAppName "한국어교육 단어 레벨 검사기"
+#define MyAppVersion "1.0.0"
 #define MyAppPublisher "Bae Gichan"
 #define MyAppExeName "KVocabGuard.exe"
 #define MyBuildDir "dist\KVocabGuard"

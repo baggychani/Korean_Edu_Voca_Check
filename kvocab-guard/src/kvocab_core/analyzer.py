@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from kvocab_core.allowlist import get_allowlist_set
 from kvocab_core.config import INCLUDE_DRAFT_DATA, USABLE_REVIEW_STATUSES
+from kvocab_core.equivalent_forms import canonical_form
 from kvocab_core.matching import build_eojeol_match_keys, is_particle_lemma, split_eojeol
 from kvocab_core.models import Lesson, Lexeme, SurfaceForm
 from kvocab_core.morph import KoreanMorphAnalyzer, RegexFallbackAnalyzer
@@ -59,19 +60,23 @@ class LexemeIndex:
         return self.by_norm_lemma.get(norm) or self.by_norm_surface.get(norm)
 
 
-_INDEX_CACHE: LexemeIndex | None = None
+_INDEX_CACHE: dict[str, LexemeIndex] = {}
+
+
+def _session_cache_key(session: Session) -> str:
+    bind = session.get_bind()
+    return bind.url.render_as_string(hide_password=False) if bind is not None else "default"
 
 
 def get_lexeme_index(session: Session) -> LexemeIndex:
-    global _INDEX_CACHE
-    if _INDEX_CACHE is None:
-        _INDEX_CACHE = LexemeIndex(session)
-    return _INDEX_CACHE
+    key = _session_cache_key(session)
+    if key not in _INDEX_CACHE:
+        _INDEX_CACHE[key] = LexemeIndex(session)
+    return _INDEX_CACHE[key]
 
 
 def invalidate_lexeme_index() -> None:
-    global _INDEX_CACHE
-    _INDEX_CACHE = None
+    _INDEX_CACHE.clear()
 
 
 def _content_lookup_key(lemma: str) -> str:
@@ -189,7 +194,7 @@ def _issue_from_lexeme(
             "뒤 단원",
         )
     else:
-        status, severity, reason = IssueStatus.unknown_medium, Severity.medium, "단원 미등록"
+        status, severity, reason = IssueStatus.unknown, Severity.medium, "단원 미등록"
 
     return Issue(
         surface=surface,
@@ -325,9 +330,7 @@ class Analyzer:
             before_introduced_count=sum(
                 1 for i in issues if i.status == IssueStatus.before_introduced
             ),
-            unknown_high_count=sum(1 for i in issues if i.status == IssueStatus.unknown_high),
-            unknown_medium_count=sum(1 for i in issues if i.status == IssueStatus.unknown_medium),
-            unknown_low_count=sum(1 for i in issues if i.status == IssueStatus.unknown_low),
+            unknown_count=sum(1 for i in issues if i.status == IssueStatus.unknown),
             ignored_count=len(debug_ignored),
             allowed_count=sum(1 for i in issues if i.status == IssueStatus.allowed),
             max_known_order_index=max_known_oi,
@@ -486,7 +489,7 @@ class Analyzer:
                         pos="",
                         status=IssueStatus.custom_allowed,
                         severity=Severity.none,
-                        reason="허용 목록",
+                        reason="허용어 목록",
                         sentence=_sentence_at(text, seg.start, seg.end),
                         start=seg.start,
                         end=seg.end,
@@ -494,20 +497,25 @@ class Analyzer:
                 )
                 continue
 
+            equivalent = canonical_form(norm)
             lex = index.lookup(norm)
+            if not lex and equivalent:
+                lex = index.lookup(equivalent)
             if lex:
-                issues.append(
-                    _issue_from_lexeme(
-                        lex,
-                        surface=surface,
-                        norm=norm,
-                        pos="",
-                        target_oi=target_oi,
-                        text=text,
-                        start=seg.start,
-                        end=seg.end,
-                    )
+                issue = _issue_from_lexeme(
+                    lex,
+                    surface=surface,
+                    norm=norm,
+                    pos="",
+                    target_oi=target_oi,
+                    text=text,
+                    start=seg.start,
+                    end=seg.end,
                 )
+                if equivalent:
+                    issue.lemma = seg.lemma
+                    issue.equivalent_lemma = lex.lemma
+                issues.append(issue)
                 continue
 
             if _should_skip_unmatched_segment(seg, surface):
@@ -645,5 +653,5 @@ class Analyzer:
         if key in allowlist or lex.normalized_lemma in allowlist:
             issue.status = IssueStatus.custom_allowed
             issue.severity = Severity.none
-            issue.reason = "허용 목록"
+            issue.reason = "허용어 목록"
         return issue

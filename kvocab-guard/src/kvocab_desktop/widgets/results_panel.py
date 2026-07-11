@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
 
 from kvocab_core.schemas import AnalyzeResult, Issue
 from kvocab_core.status_labels import STATUS_LABELS_KO, status_label_ko
+from kvocab_desktop.layout_metrics import STAT_CARD_CONTENT_MARGINS, STAT_TO_FILTER_SPACING
 from kvocab_desktop.style import STATUS_BG_COLORS, STATUS_COLORS
 from kvocab_desktop.widgets.table_font import app_default_font, bold_font
 
@@ -32,12 +33,12 @@ _STRETCH_MIN_WIDTH = {_COL_SURFACE: 72, _COL_LEMMA: 80, _COL_SENTENCE: 100}
 _ROW_HEIGHT = 42
 _CELL_HPAD = 16
 _VERDICT_EXTRA_PAD = 28
+_SURFACE_FLEX_WEIGHT = 0.85
+_LEMMA_FLEX_WEIGHT = 1.15
 _SENTENCE_FLEX_WEIGHT = 0.85  # 표현·원형과 균등 분배 대비 15% 적음
 _STATUS_SORT_ORDER = {
     "before_introduced": 0,
-    "unknown_high": 1,
-    "unknown_medium": 2,
-    "unknown_low": 3,
+    "unknown": 1,
     "ignored_pattern": 4,
     "ignored_nnp": 4,
     "custom_allowed": 5,
@@ -98,9 +99,13 @@ def _apply_flex_column_widths(table: QTableWidget) -> None:
     fixed_total = fixed[_COL_VERDICT] + fixed[_COL_FIRST]
     flex = max(0, viewport_w - fixed_total)
 
-    flex_weight_sum = 1.0 + 1.0 + _SENTENCE_FLEX_WEIGHT
-    surf_w = max(_STRETCH_MIN_WIDTH[_COL_SURFACE], int(flex * 1.0 / flex_weight_sum))
-    lemma_w = max(_STRETCH_MIN_WIDTH[_COL_LEMMA], int(flex * 1.0 / flex_weight_sum))
+    flex_weight_sum = _SURFACE_FLEX_WEIGHT + _LEMMA_FLEX_WEIGHT + _SENTENCE_FLEX_WEIGHT
+    surf_w = max(
+        _STRETCH_MIN_WIDTH[_COL_SURFACE], int(flex * _SURFACE_FLEX_WEIGHT / flex_weight_sum)
+    )
+    lemma_w = max(
+        _STRETCH_MIN_WIDTH[_COL_LEMMA], int(flex * _LEMMA_FLEX_WEIGHT / flex_weight_sum)
+    )
     sent_w = max(
         _STRETCH_MIN_WIDTH[_COL_SENTENCE],
         int(flex * _SENTENCE_FLEX_WEIGHT / flex_weight_sum),
@@ -155,7 +160,7 @@ def _stat_card(label: str, accent: str = "#111827") -> tuple[QFrame, QLabel]:
     card = QFrame()
     card.setObjectName("statCard")
     lay = QVBoxLayout(card)
-    lay.setContentsMargins(12, 8, 12, 8)
+    lay.setContentsMargins(*STAT_CARD_CONTENT_MARGINS)
     lay.setSpacing(2)
     value = QLabel("-")
     value.setObjectName("statValue")
@@ -172,6 +177,12 @@ def _selection_display(issue: Issue) -> str:
     if issue.lemma and issue.lemma != issue.surface:
         return f"{issue.surface}({issue.lemma})"
     return issue.surface
+
+
+def _lemma_display(issue: Issue) -> str:
+    if issue.equivalent_lemma:
+        return f"{issue.lemma} → {issue.equivalent_lemma}"
+    return issue.lemma
 
 
 class ResultsPanel(QWidget):
@@ -199,12 +210,12 @@ class ResultsPanel(QWidget):
         stats_row.addWidget(card, 1)
         card, self.lbl_early = _stat_card("아직 이릅니다", STATUS_COLORS["before_introduced"])
         stats_row.addWidget(card, 1)
-        card, self.lbl_high = _stat_card("교재 외 · 난이도 높음", STATUS_COLORS["unknown_high"])
+        card, self.lbl_unknown = _stat_card("교재에 없습니다", STATUS_COLORS["unknown"])
         stats_row.addWidget(card, 1)
         card, self.lbl_max = _stat_card("확인된 최고 단원", "#111827")
         stats_row.addWidget(card, 1)
         layout.addLayout(stats_row)
-        layout.addSpacing(12)
+        layout.addSpacing(STAT_TO_FILTER_SPACING)
 
         chip_row = QHBoxLayout()
         chip_row.setContentsMargins(0, 0, 0, 0)
@@ -212,11 +223,9 @@ class ResultsPanel(QWidget):
         self.filter_buttons: dict[str, QPushButton] = {}
         for key, label in [
             ("all", "전체"),
-            ("allowed", "👍 사용 가능"),
+            ("allowed", "✅ 사용 가능"),
             ("before_introduced", "⚠️ 아직 이릅니다"),
-            ("unknown_high", "교재 외 · 높음"),
-            ("unknown_medium", "교재 외 · 검토"),
-            ("unknown_low", "교재 외 · 참고"),
+            ("unknown", "❌ 교재에 없습니다"),
         ]:
             btn = QPushButton(label)
             btn.setCheckable(True)
@@ -226,18 +235,15 @@ class ResultsPanel(QWidget):
             chip_row.addWidget(btn)
             self.filter_buttons[key] = btn
         self.filter_buttons["all"].setChecked(True)
+        self.display_count_label = QLabel("")
+        self.display_count_label.setObjectName("tableCount")
         chip_row.addStretch()
+        chip_row.addWidget(self.display_count_label)
 
         table_section = QVBoxLayout()
         table_section.setContentsMargins(0, 0, 0, 0)
         table_section.setSpacing(9)
         table_section.addLayout(chip_row)
-
-        self.completion_label = QLabel("")
-        self.completion_label.setObjectName("completionStatus")
-        self.completion_label.setWordWrap(True)
-        self.completion_label.setVisible(False)
-        table_section.addWidget(self.completion_label)
 
         self.table = QTableWidget(0, 5)
         self.table.setHorizontalHeaderLabels(["표현", "원형", "판정", "처음 나오는 곳", "문장"])
@@ -249,6 +255,9 @@ class ResultsPanel(QWidget):
         self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.table.setFont(app_default_font())
         self.table.setWordWrap(False)
+        self.table.setSortingEnabled(False)
+        self.table.horizontalHeader().setSectionsClickable(False)
+        self.table.horizontalHeader().setSortIndicatorShown(False)
         self.table.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.table.setItemDelegateForColumn(_COL_VERDICT, _VerdictItemDelegate(self.table))
         _apply_flex_column_widths(self.table)
@@ -263,8 +272,9 @@ class ResultsPanel(QWidget):
 
         selection_bar = QFrame()
         selection_bar.setObjectName("selectionBar")
+        selection_bar.setMaximumHeight(56)
         sel_layout = QHBoxLayout(selection_bar)
-        sel_layout.setContentsMargins(16, 10, 16, 10)
+        sel_layout.setContentsMargins(14, 6, 14, 6)
         sel_layout.setSpacing(10)
         sel_text_col = QVBoxLayout()
         sel_text_col.setSpacing(2)
@@ -278,17 +288,21 @@ class ResultsPanel(QWidget):
         sel_layout.addLayout(sel_text_col, stretch=1)
         btn_col = QHBoxLayout()
         btn_col.setSpacing(8)
-        self.allow_btn = QPushButton("허용 목록에 추가")
+        self.allow_btn = QPushButton("허용어 목록에 추가")
         self.allow_btn.setToolTip(
-            "선택한 표현의 원형을 허용 목록에 넣습니다. "
+            "선택한 표현의 원형을 허용어 목록에 넣습니다. "
             "목표 단원과 관계없이 이후 검사에서 경고하지 않습니다."
         )
         self.allow_btn.setEnabled(False)
         self.copy_btn = QPushButton("복사")
         self.copy_btn.setProperty("variant", "secondary")
         self.copy_btn.setEnabled(False)
+        self.copy_sentence_btn = QPushButton("문장 복사")
+        self.copy_sentence_btn.setProperty("variant", "secondary")
+        self.copy_sentence_btn.setEnabled(False)
         btn_col.addWidget(self.allow_btn)
         btn_col.addWidget(self.copy_btn)
+        btn_col.addWidget(self.copy_sentence_btn)
         sel_layout.addLayout(btn_col)
         layout.addWidget(selection_bar)
 
@@ -296,9 +310,11 @@ class ResultsPanel(QWidget):
         self._allowed: list[Issue] = []
         self._filter = "all"
         self._selected: Issue | None = None
+        self._completion_text = ""
 
         self.allow_btn.clicked.connect(self._allow)
         self.copy_btn.clicked.connect(self._copy)
+        self.copy_sentence_btn.clicked.connect(self._copy_sentence)
 
     def _set_filter(self, key: str) -> None:
         self._filter = key
@@ -310,12 +326,12 @@ class ResultsPanel(QWidget):
         if not result:
             self._issues = []
             self._allowed = []
-            self.completion_label.setVisible(False)
+            self._completion_text = ""
             for lbl in (
                 self.lbl_target,
                 self.lbl_issues,
                 self.lbl_early,
-                self.lbl_high,
+                self.lbl_unknown,
                 self.lbl_max,
             ):
                 lbl.setText("-")
@@ -326,16 +342,15 @@ class ResultsPanel(QWidget):
         self.lbl_target.setText(s.target_display)
         self.lbl_issues.setText(str(s.issue_count))
         self.lbl_early.setText(str(s.before_introduced_count))
-        self.lbl_high.setText(str(s.unknown_high_count))
+        self.lbl_unknown.setText(str(s.unknown_count))
         self.lbl_max.setText(s.max_known_display or "-")
         self._issues = result.issues
         self._allowed = result.allowed
 
         if s.issue_count == 0:
-            self.completion_label.setText(f"검사 완료 — {s.target_display} 기준 문제 없음")
-            self.completion_label.setVisible(True)
+            self._completion_text = f"✓  검사 완료 — {s.target_display} 기준 문제 없음"
         else:
-            self.completion_label.setVisible(False)
+            self._completion_text = ""
 
         self._refresh_table()
 
@@ -347,7 +362,16 @@ class ResultsPanel(QWidget):
 
     def _filtered_issues(self) -> list[Issue]:
         if self._filter == "all":
-            return sorted(self._issues, key=_issue_sort_key)
+            combined = list(self._issues)
+            seen = {
+                (issue.start, issue.end, issue.status.value, issue.normalized) for issue in combined
+            }
+            for issue in self._allowed:
+                key = (issue.start, issue.end, issue.status.value, issue.normalized)
+                if key not in seen:
+                    seen.add(key)
+                    combined.append(issue)
+            return sorted(combined, key=_issue_sort_key)
         if self._filter == "allowed":
             return sorted(self._allowed, key=_issue_sort_key)
         return sorted(
@@ -357,13 +381,27 @@ class ResultsPanel(QWidget):
 
     def _refresh_table(self) -> None:
         filtered = self._filtered_issues()
-        self.table.setRowCount(len(filtered))
+        self.display_count_label.setText(f"판정순 · 등장순 · {len(filtered)}개 표시")
+        show_completion = bool(self._completion_text) and self._filter == "all"
+        row_offset = 1 if show_completion else 0
+        self.table.clearSpans()
+        self.table.setRowCount(len(filtered) + row_offset)
 
-        for row, issue in enumerate(filtered):
+        if show_completion:
+            item = QTableWidgetItem(self._completion_text)
+            item.setFlags(Qt.ItemFlag.ItemIsEnabled)
+            item.setForeground(QColor("#15803d"))
+            item.setBackground(QColor("#f0fdf4"))
+            item.setFont(bold_font(self.table))
+            self.table.setItem(0, 0, item)
+            self.table.setSpan(0, 0, 1, self.table.columnCount())
+            self.table.setRowHeight(0, 38)
+
+        for row, issue in enumerate(filtered, start=row_offset):
             label = status_label_ko(issue.status.value)
             values = [
                 issue.surface,
-                issue.lemma,
+                _lemma_display(issue),
                 label,
                 issue.first_seen_display,
                 issue.sentence,
@@ -414,12 +452,17 @@ class ResultsPanel(QWidget):
             self.selected_label.setText("—")
             self.allow_btn.setEnabled(False)
             self.copy_btn.setEnabled(False)
+            self.copy_sentence_btn.setEnabled(False)
             return
 
         issue: Issue = items[0].data(Qt.ItemDataRole.UserRole)
+        if issue is None:
+            self.table.clearSelection()
+            return
         self._selected = issue
         self.selected_label.setText(_selection_display(issue))
         self.copy_btn.setEnabled(True)
+        self.copy_sentence_btn.setEnabled(bool(issue.sentence))
         can_allow = issue.status.value not in ("allowed", "custom_allowed")
         self.allow_btn.setEnabled(can_allow)
         self.issue_selected.emit(issue)
@@ -458,9 +501,16 @@ class ResultsPanel(QWidget):
 
             QApplication.clipboard().setText(_selection_display(self._selected))
 
+    def _copy_sentence(self) -> None:
+        if self._selected and self._selected.sentence:
+            from PySide6.QtWidgets import QApplication
+
+            QApplication.clipboard().setText(self._selected.sentence)
+
     def clear(self) -> None:
         self.show_result(None)
         self._selected = None
         self.selected_label.setText("—")
         self.allow_btn.setEnabled(False)
         self.copy_btn.setEnabled(False)
+        self.copy_sentence_btn.setEnabled(False)

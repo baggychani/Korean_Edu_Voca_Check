@@ -14,7 +14,12 @@ from kvocab_core.models import AppMeta, Lesson, Level
 from kvocab_core.tools.import_xlsx import import_vocabulary_xlsx
 
 
-def seed_levels_and_lessons(session: Session, level_code: str = "2A") -> None:
+def seed_levels_and_lessons(
+    session: Session,
+    level_code: str = "2A",
+    *,
+    commit: bool = True,
+) -> None:
     meta = LEVEL_META.get(level_code)
     lessons = LEVEL_LESSONS.get(level_code)
     if not meta or not lessons:
@@ -55,13 +60,16 @@ def seed_levels_and_lessons(session: Session, level_code: str = "2A") -> None:
                 order_index=oi,
             )
         )
-    session.commit()
+    if commit:
+        session.commit()
 
 
-def seed_all_levels(session: Session) -> None:
+def seed_all_levels(session: Session, *, commit: bool = True) -> None:
     for level_code in LEVEL_LESSONS:
         if level_code in LEVEL_META:
-            seed_levels_and_lessons(session, level_code)
+            seed_levels_and_lessons(session, level_code, commit=False)
+    if commit:
+        session.commit()
 
 
 def page_to_lesson(session: Session, level: str, page: int) -> Lesson | None:
@@ -94,13 +102,14 @@ def is_seed_current(session: Session, xlsx_path: Path | None = None) -> bool:
     return get_seed_fingerprint(session) == current_seed_fingerprint(xlsx_path)
 
 
-def set_seed_fingerprint(session: Session, fingerprint: str) -> None:
+def set_seed_fingerprint(session: Session, fingerprint: str, *, commit: bool = True) -> None:
     row = session.get(AppMeta, SEED_FINGERPRINT_KEY)
     if row:
         row.value = fingerprint
     else:
         session.add(AppMeta(key=SEED_FINGERPRINT_KEY, value=fingerprint))
-    session.commit()
+    if commit:
+        session.commit()
 
 
 def full_seed(
@@ -111,13 +120,18 @@ def full_seed(
 ) -> dict:
     path = xlsx_path or DEFAULT_SEED_XLSX
     fingerprint = current_seed_fingerprint(path)
-    reset_db(session, preserve_allowlist=preserve_allowlist)
-    seed_all_levels(session)
-    stats = import_vocabulary_xlsx(session, path)
-    ensure_default_allowlist(session)
-    set_seed_fingerprint(session, fingerprint)
-    stats["seed_fingerprint"] = fingerprint[:12]
-    return stats
+    try:
+        reset_db(session, preserve_allowlist=preserve_allowlist, commit=False)
+        seed_all_levels(session, commit=False)
+        stats = import_vocabulary_xlsx(session, path, commit=False)
+        ensure_default_allowlist(session, commit=False)
+        set_seed_fingerprint(session, fingerprint, commit=False)
+        stats["seed_fingerprint"] = fingerprint[:12]
+        session.commit()
+        return stats
+    except Exception:
+        session.rollback()
+        raise
 
 
 def main() -> None:

@@ -4,6 +4,7 @@ from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from kvocab_core.config import INCLUDE_DRAFT_DATA, USABLE_REVIEW_STATUSES
+from kvocab_core.equivalent_forms import canonical_form, equivalent_forms_for
 from kvocab_core.models import Lexeme, Occurrence
 from kvocab_core.normalization import lemma_gana_sort_key, normalize_key
 from kvocab_core.schemas import LexemeSearchResult
@@ -38,7 +39,12 @@ def search_lexemes(
     if not INCLUDE_DRAFT_DATA:
         base = base.filter(Lexeme.review_status.in_(USABLE_REVIEW_STATUSES))
 
-    exact = base.filter(Lexeme.normalized_lemma == q).all()
+    canonical = canonical_form(q)
+    exact_keys = [q]
+    if canonical and canonical not in exact_keys:
+        exact_keys.append(canonical)
+    exact = base.filter(Lexeme.normalized_lemma.in_(exact_keys)).all()
+    exact.sort(key=lambda lex: exact_keys.index(lex.normalized_lemma))
     fuzzy = (
         base.filter(
             Lexeme.normalized_lemma != q,
@@ -100,6 +106,7 @@ def search_lexemes(
                 occurrences=occ_dicts,
                 verdict_label_ko=_verdict_for_target(lex.first_order_index, target_order_index),
                 other_occurrences=other,
+                equivalent_forms=equivalent_forms_for(lex.normalized_lemma),
             )
         )
     return results
@@ -203,6 +210,7 @@ def list_lexemes(
                 ],
                 verdict_label_ko=_verdict_for_target(lex.first_order_index, target_order_index),
                 other_occurrences=other,
+                equivalent_forms=equivalent_forms_for(lex.normalized_lemma),
             )
         )
     return results

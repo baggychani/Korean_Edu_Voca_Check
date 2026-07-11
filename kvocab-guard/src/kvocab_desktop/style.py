@@ -169,7 +169,16 @@ QLabel#sectionHint {
     color: #6b7280;
     background: transparent;
 }
-
+QLabel#workStatus {
+    color: #0f3460;
+    background: #e8f2fd;
+    border: 1px solid #c5ddfa;
+    border-radius: 8px;
+    padding: 8px 12px;
+    margin: 0 0 10px 0;
+    font-size: 12px;
+    font-weight: 600;
+}
 /* ---------- Cards ---------- */
 QFrame#card {
     background: #ffffff;
@@ -180,14 +189,6 @@ QFrame#statCard {
     background: #ffffff;
     border: 1px solid #dde3ec;
     border-radius: 10px;
-}
-QLabel#completionStatus {
-    color: #15803d;
-    background: #f0fdf4;
-    border: 1px solid #bbf7d0;
-    border-radius: 8px;
-    padding: 10px 14px;
-    font-size: 12px;
 }
 QLabel#statValue {
     font-size: 19px;
@@ -223,10 +224,16 @@ QLabel#selectionHint {
     background: transparent;
 }
 QLabel#selectedExpression {
-    font-size: 18px;
+    font-size: 17px;
     font-weight: 700;
     color: #111827;
     background: transparent;
+}
+QLabel#tableCount {
+    font-size: 11px;
+    color: #64748b;
+    background: transparent;
+    padding: 0 2px;
 }
 
 /* ---------- Buttons ---------- */
@@ -235,6 +242,13 @@ QFrame#selectionBar QPushButton {
     padding: 8px 16px;
     min-height: 18px;
     border-radius: 7px;
+}
+QWidget#analyzeActions QPushButton#primaryAnalyzeButton {
+    padding: 11px 24px;
+    min-width: 136px;
+    min-height: 24px;
+    border-radius: 8px;
+    font-size: 13px;
 }
 QPushButton {
     background: #1a6fdb;
@@ -431,18 +445,14 @@ QMessageBox {
 
 STATUS_COLORS = {
     "before_introduced": "#dc2626",
-    "unknown_high": "#ea580c",
-    "unknown_medium": "#ca8a04",
-    "unknown_low": "#64748b",
+    "unknown": "#ca8a04",
     "allowed": "#16a34a",
     "custom_allowed": "#0891b2",
 }
 
 STATUS_BG_COLORS = {
     "before_introduced": "#fef2f2",
-    "unknown_high": "#fff7ed",
-    "unknown_medium": "#fefce8",
-    "unknown_low": "#f8fafc",
+    "unknown": "#fefce8",
     "allowed": "#f0fdf4",
     "custom_allowed": "#ecfeff",
 }

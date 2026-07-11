@@ -5,7 +5,7 @@ import pytest
 from kvocab_core.config import DEFAULT_SEED_XLSX
 from kvocab_core.database import init_db
 from kvocab_core.dictionary import search_lexemes, search_lexemes_multi
-from kvocab_core.models import Lesson
+from kvocab_core.models import Lesson, Lexeme
 from kvocab_core.seed import full_seed
 
 
@@ -61,3 +61,14 @@ def test_search_multi_terms(db_with_seed):
     lemmas = {r.lemma for r in results}
     assert "가입하다" in lemmas
     assert "컵" in lemmas
+
+
+def test_equivalent_form_search_returns_canonical_without_adding_lemma(db_with_seed):
+    with db_with_seed() as session:
+        results = search_lexemes(session, "안녕")
+        stored_alias = session.query(Lexeme).filter(Lexeme.normalized_lemma == "안녕").one_or_none()
+
+    assert results
+    assert results[0].lemma == "안녕하세요"
+    assert results[0].equivalent_forms == ["안녕"]
+    assert stored_alias is None

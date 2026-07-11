@@ -80,7 +80,7 @@ def list_allowlist(session: Session) -> list[CustomAllowlist]:
     return session.query(CustomAllowlist).order_by(CustomAllowlist.id).all()
 
 
-def ensure_default_allowlist(session: Session) -> int:
+def ensure_default_allowlist(session: Session, *, commit: bool = True) -> int:
     """교재 고정 등장인물을 DB 허용 목록에 넣는다 (이미 있으면 건너뜀)."""
     added = 0
     for name in DEFAULT_CHARACTER_NAMES:
@@ -103,6 +103,6 @@ def ensure_default_allowlist(session: Session) -> int:
             )
         )
         added += 1
-    if added:
+    if added and commit:
         session.commit()
     return added

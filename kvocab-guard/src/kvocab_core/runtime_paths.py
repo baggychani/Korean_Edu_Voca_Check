@@ -74,5 +74,5 @@ def configure_frozen_dll_paths() -> None:
 
 def crash_log_path() -> Path:
     if is_frozen():
-        return app_install_root() / "KVocabGuard-crash.log"
+        return writable_data_dir() / "KVocabGuard-crash.log"
     return bundle_root() / "KVocabGuard-crash.log"

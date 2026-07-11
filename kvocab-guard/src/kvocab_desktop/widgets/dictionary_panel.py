@@ -161,13 +161,6 @@ class DictionaryPanel(QWidget):
         r = item.data(Qt.ItemDataRole.UserRole) if item else self._display_results[row]
         if not r:
             r = self._display_results[row]
-        verdict = r.verdict_label_ko or "-"
-        verdict_color = "#16a34a" if verdict == "사용 가능" else "#dc2626"
-        if r.other_occurrences:
-            others = " · ".join(r.other_occurrences)
-        else:
-            others = "없음"
+        equivalents = " · ".join(r.equivalent_forms) if r.equivalent_forms else "없음"
         self.detail_title.setText(r.lemma)
-        self.detail.setText(
-            f"판정: <b style='color:{verdict_color};'>{verdict}</b><br>다른 등장: {others}"
-        )
+        self.detail.setText(f"동일 처리 표현: <b>{equivalents}</b>")

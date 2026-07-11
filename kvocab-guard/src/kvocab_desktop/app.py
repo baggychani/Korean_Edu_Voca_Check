@@ -51,7 +51,7 @@ def _show_fatal_error(exc: BaseException, log_path: Path) -> None:
     app = QApplication.instance()
     if app is None:
         app = QApplication(sys.argv)
-    QMessageBox.critical(None, "한국어교육 단어 검사기 실행 오류", message)
+    QMessageBox.critical(None, "한국어교육 단어 레벨 검사기 실행 오류", message)
 
 
 def _run_smoke_analyze() -> None:

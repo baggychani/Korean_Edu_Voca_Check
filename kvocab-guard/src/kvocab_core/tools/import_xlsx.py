@@ -74,7 +74,7 @@ def _metadata_from_row(row: dict) -> dict:
     return {k: row.get(k) for k in ("unit_topic", "unit_title") if row.get(k) not in (None, "")}
 
 
-def import_level_map_sheet(session: Session, ws) -> int:
+def import_level_map_sheet(session: Session, ws, *, commit: bool = True) -> int:
     count = 0
     for r in ws.iter_rows(min_row=2, values_only=True):
         if not r or not r[0]:
@@ -102,194 +102,202 @@ def import_level_map_sheet(session: Session, ws) -> int:
             ls.page_start = int(_page_start)
             ls.page_end = int(_page_end)
         count += 1
-    session.commit()
+    if commit:
+        session.commit()
     return count
 
 
-def import_vocabulary_xlsx(session: Session, path: Path) -> dict:
+def import_vocabulary_xlsx(session: Session, path: Path, *, commit: bool = True) -> dict:
     wb = openpyxl.load_workbook(path, read_only=True, data_only=True)
-    if "Level_Map" in wb.sheetnames:
-        import_level_map_sheet(session, wb["Level_Map"])
+    try:
+        if "Level_Map" in wb.sheetnames:
+            import_level_map_sheet(session, wb["Level_Map"], commit=False)
 
-    ws = wb["Vocabulary"]
-    header = [c.value for c in next(ws.iter_rows(min_row=1, max_row=1))]
-    col = {name: i for i, name in enumerate(header)}
+        ws = wb["Vocabulary"]
+        header = [c.value for c in next(ws.iter_rows(min_row=1, max_row=1))]
+        col = {name: i for i, name in enumerate(header)}
 
-    stats = {
-        "imported_lexemes": 0,
-        "occurrences": 0,
-        "unmapped": 0,
-        "warnings": [],
-    }
+        stats = {
+            "imported_lexemes": 0,
+            "occurrences": 0,
+            "unmapped": 0,
+            "warnings": [],
+        }
 
-    lessons_by_level: dict[str, list[Lesson]] = {}
+        lessons_by_level: dict[str, list[Lesson]] = {}
 
-    for row_vals in ws.iter_rows(min_row=2, values_only=True):
-        if not row_vals or not any(row_vals):
-            continue
+        for row_vals in ws.iter_rows(min_row=2, values_only=True):
+            if not row_vals or not any(row_vals):
+                continue
 
-        row = {h: (row_vals[col[h]] if col.get(h) is not None else None) for h in VOCAB_HEADERS}
-        lemma = row.get("lemma")
-        level = row.get("level")
-        unit_no_raw = row.get("unit_no")
-        lesson_no_raw = row.get("lesson_no")
-        first_page_raw = row.get("first_page")
+            row = {h: (row_vals[col[h]] if col.get(h) is not None else None) for h in VOCAB_HEADERS}
+            lemma = row.get("lemma")
+            level = row.get("level")
+            unit_no_raw = row.get("unit_no")
+            lesson_no_raw = row.get("lesson_no")
+            first_page_raw = row.get("first_page")
 
-        if (
-            not lemma
-            or not level
-            or unit_no_raw is None
-            or lesson_no_raw is None
-            or first_page_raw is None
-        ):
-            _stage_unmapped(
-                session,
-                lemma=str(lemma) if lemma else None,
-                level=str(level) if level else None,
-                lesson=None,
-                first_page=int(first_page_raw) if first_page_raw else None,
-                reason="missing_required_fields",
-                metadata=_metadata_from_row(row),
-            )
-            stats["unmapped"] += 1
-            continue
-
-        lemma = str(lemma).strip()
-        level = str(level).strip()
-        lesson = lesson_code(unit_no_raw, lesson_no_raw)
-
-        if level not in lessons_by_level:
-            lessons_by_level[level] = _page_lesson_map(session, level)
-
-        lesson_rows = lessons_by_level[level]
-        lesson_obj = next((ls for ls in lesson_rows if ls.lesson == lesson), None)
-        if not lesson_obj:
-            _stage_unmapped(
-                session,
-                lemma=lemma,
-                level=level,
-                lesson=lesson,
-                first_page=int(first_page_raw),
-                reason="unknown_lesson",
-                metadata=_metadata_from_row(row),
-            )
-            stats["unmapped"] += 1
-            continue
-
-        first_page = int(first_page_raw)
-        if not (lesson_obj.page_start <= first_page <= lesson_obj.page_end):
-            _stage_unmapped(
-                session,
-                lemma=lemma,
-                level=level,
-                lesson=lesson,
-                first_page=first_page,
-                reason="first_page_out_of_lesson_range",
-                metadata=_metadata_from_row(row),
-            )
-            stats["unmapped"] += 1
-            continue
-
-        norm = normalize_key(lemma)
-        if not norm:
-            stats["unmapped"] += 1
-            continue
-
-        pl = lesson_for_page(lesson_rows, first_page)
-        valid_occurrences: list[tuple[Lesson, int]] = [(pl, first_page)] if pl else []
-
-        if not valid_occurrences:
-            _stage_unmapped(
-                session,
-                lemma=lemma,
-                level=level,
-                lesson=lesson,
-                first_page=first_page,
-                reason="no_valid_page_mapping",
-                metadata=_metadata_from_row(row),
-            )
-            stats["unmapped"] += 1
-            continue
-
-        valid_occurrences.sort(key=lambda x: x[0].order_index * 10000 + x[1])
-
-        meta_json = json.dumps(_metadata_from_row(row), ensure_ascii=False) or None
-        source_type = str(row.get("source_type") or "glossary_index_ocr")
-
-        lex = session.query(Lexeme).filter(Lexeme.normalized_lemma == norm).one_or_none()
-        if not lex:
-            earliest_lesson, earliest_page = valid_occurrences[0]
-            lex = Lexeme(
-                lemma=lemma,
-                normalized_lemma=norm,
-                gloss_en=str(row.get("gloss_en") or "") or None,
-                item_type="expression" if " " in lemma or len(norm) > 8 else "vocab",
-                source_type=source_type,
-                review_status="approved",
-                first_level=level,
-                first_lesson=earliest_lesson.lesson,
-                first_page=earliest_page,
-                first_order_index=earliest_lesson.order_index,
-                raw_source_metadata=meta_json,
-            )
-            session.add(lex)
-            session.flush()
-            stats["imported_lexemes"] += 1
-        else:
-            if lex.gloss_en is None and row.get("gloss_en"):
-                lex.gloss_en = str(row.get("gloss_en"))
-
-        for pl, page in valid_occurrences:
-            exists = (
-                session.query(Occurrence)
-                .filter(
-                    Occurrence.lexeme_id == lex.id,
-                    Occurrence.level == level,
-                    Occurrence.lesson == pl.lesson,
-                    Occurrence.page == page,
+            if (
+                not lemma
+                or not level
+                or unit_no_raw is None
+                or lesson_no_raw is None
+                or first_page_raw is None
+            ):
+                _stage_unmapped(
+                    session,
+                    lemma=str(lemma) if lemma else None,
+                    level=str(level) if level else None,
+                    lesson=None,
+                    first_page=int(first_page_raw) if first_page_raw else None,
+                    reason="missing_required_fields",
+                    metadata=_metadata_from_row(row),
                 )
-                .one_or_none()
-            )
-            if not exists:
-                session.add(
-                    Occurrence(
-                        lexeme_id=lex.id,
-                        level=level,
-                        lesson=pl.lesson,
-                        page=page,
-                        order_index=pl.order_index,
-                        source_type=source_type,
-                        review_status="approved",
-                        raw_source_metadata=meta_json,
+                stats["unmapped"] += 1
+                continue
+
+            lemma = str(lemma).strip()
+            level = str(level).strip()
+            lesson = lesson_code(unit_no_raw, lesson_no_raw)
+
+            if level not in lessons_by_level:
+                lessons_by_level[level] = _page_lesson_map(session, level)
+
+            lesson_rows = lessons_by_level[level]
+            lesson_obj = next((ls for ls in lesson_rows if ls.lesson == lesson), None)
+            if not lesson_obj:
+                _stage_unmapped(
+                    session,
+                    lemma=lemma,
+                    level=level,
+                    lesson=lesson,
+                    first_page=int(first_page_raw),
+                    reason="unknown_lesson",
+                    metadata=_metadata_from_row(row),
+                )
+                stats["unmapped"] += 1
+                continue
+
+            first_page = int(first_page_raw)
+            if not (lesson_obj.page_start <= first_page <= lesson_obj.page_end):
+                _stage_unmapped(
+                    session,
+                    lemma=lemma,
+                    level=level,
+                    lesson=lesson,
+                    first_page=first_page,
+                    reason="first_page_out_of_lesson_range",
+                    metadata=_metadata_from_row(row),
+                )
+                stats["unmapped"] += 1
+                continue
+
+            norm = normalize_key(lemma)
+            if not norm:
+                stats["unmapped"] += 1
+                continue
+
+            pl = lesson_for_page(lesson_rows, first_page)
+            valid_occurrences: list[tuple[Lesson, int]] = [(pl, first_page)] if pl else []
+
+            if not valid_occurrences:
+                _stage_unmapped(
+                    session,
+                    lemma=lemma,
+                    level=level,
+                    lesson=lesson,
+                    first_page=first_page,
+                    reason="no_valid_page_mapping",
+                    metadata=_metadata_from_row(row),
+                )
+                stats["unmapped"] += 1
+                continue
+
+            valid_occurrences.sort(key=lambda x: x[0].order_index * 10000 + x[1])
+
+            meta_json = json.dumps(_metadata_from_row(row), ensure_ascii=False) or None
+            source_type = str(row.get("source_type") or "glossary_index_ocr")
+
+            lex = session.query(Lexeme).filter(Lexeme.normalized_lemma == norm).one_or_none()
+            if not lex:
+                earliest_lesson, earliest_page = valid_occurrences[0]
+                lex = Lexeme(
+                    lemma=lemma,
+                    normalized_lemma=norm,
+                    gloss_en=str(row.get("gloss_en") or "") or None,
+                    item_type="expression" if " " in lemma or len(norm) > 8 else "vocab",
+                    source_type=source_type,
+                    review_status="approved",
+                    first_level=level,
+                    first_lesson=earliest_lesson.lesson,
+                    first_page=earliest_page,
+                    first_order_index=earliest_lesson.order_index,
+                    raw_source_metadata=meta_json,
+                )
+                session.add(lex)
+                session.flush()
+                stats["imported_lexemes"] += 1
+            else:
+                if lex.gloss_en is None and row.get("gloss_en"):
+                    lex.gloss_en = str(row.get("gloss_en"))
+
+            for pl, page in valid_occurrences:
+                exists = (
+                    session.query(Occurrence)
+                    .filter(
+                        Occurrence.lexeme_id == lex.id,
+                        Occurrence.level == level,
+                        Occurrence.lesson == pl.lesson,
+                        Occurrence.page == page,
                     )
+                    .one_or_none()
                 )
-                stats["occurrences"] += 1
+                if not exists:
+                    session.add(
+                        Occurrence(
+                            lexeme_id=lex.id,
+                            level=level,
+                            lesson=pl.lesson,
+                            page=page,
+                            order_index=pl.order_index,
+                            source_type=source_type,
+                            review_status="approved",
+                            raw_source_metadata=meta_json,
+                        )
+                    )
+                    stats["occurrences"] += 1
 
-        all_occs = (
-            session.query(Occurrence)
-            .filter(Occurrence.lexeme_id == lex.id)
-            .order_by(Occurrence.order_index, Occurrence.page)
-            .all()
-        )
-        if all_occs:
-            first = all_occs[0]
-            lex.first_level = first.level
-            lex.first_lesson = first.lesson
-            lex.first_page = first.page
-            lex.first_order_index = first.order_index
+            all_occs = (
+                session.query(Occurrence)
+                .filter(Occurrence.lexeme_id == lex.id)
+                .order_by(Occurrence.order_index, Occurrence.page)
+                .all()
+            )
+            if all_occs:
+                first = all_occs[0]
+                lex.first_level = first.level
+                lex.first_lesson = first.lesson
+                lex.first_page = first.page
+                lex.first_order_index = first.order_index
 
-        _ensure_surface_form(session, lex.id, lemma, norm, "observed")
+            _ensure_surface_form(session, lex.id, lemma, norm, "observed")
 
-        # 다단어 표현: 조사 제거 원형 시퀀스 key도 surface form으로 저장
-        # 예: "수업이 끝나다" -> "수업끝나다", "값이 비싸다" -> "값비싸다"
-        lemma_key = compute_lemma_key(lemma)
-        if lemma_key and lemma_key != norm:
-            _ensure_surface_form(session, lex.id, lemma, lemma_key, "generated")
-        session.flush()
+            # 다단어 표현: 조사 제거 원형 시퀀스 key도 surface form으로 저장
+            # 예: "수업이 끝나다" -> "수업끝나다", "값이 비싸다" -> "값비싸다"
+            lemma_key = compute_lemma_key(lemma)
+            if lemma_key and lemma_key != norm:
+                _ensure_surface_form(session, lex.id, lemma, lemma_key, "generated")
+            session.flush()
 
-    session.commit()
-    wb.close()
-    return stats
+        if commit:
+            session.commit()
+        return stats
+    except Exception:
+        if commit:
+            session.rollback()
+        raise
+    finally:
+        wb.close()
 
 
 def _ensure_surface_form(

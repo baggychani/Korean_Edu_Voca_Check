@@ -5,10 +5,8 @@ from __future__ import annotations
 STATUS_LABELS_KO: dict[str, str] = {
     "allowed": "사용 가능",
     "before_introduced": "아직 이릅니다",
-    "unknown_high": "교재 외 · 난이도 높음",
-    "unknown_medium": "교재 외 · 검토 필요",
-    "unknown_low": "교재 외 · 참고",
-    "custom_allowed": "허용 목록",
+    "unknown": "교재에 없습니다",
+    "custom_allowed": "허용어",
     "ignored_nnp": "표시하지 않음",
     "ignored_pattern": "표시하지 않음",
 }

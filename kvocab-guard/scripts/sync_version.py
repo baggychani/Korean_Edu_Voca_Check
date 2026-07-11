@@ -71,12 +71,12 @@ def render_info_txt(version: str) -> str:
       StringTable(
         '041204b0',
         [StringStruct('CompanyName', 'Bae Gichan'),
-        StringStruct('FileDescription', '한국어교육 단어 검사기'),
+        StringStruct('FileDescription', '한국어교육 단어 레벨 검사기'),
         StringStruct('FileVersion', '{version}'),
         StringStruct('InternalName', 'KVocabGuard'),
         StringStruct('LegalCopyright', 'Copyright (c) 2026 Bae Gichan'),
         StringStruct('OriginalFilename', 'KVocabGuard.exe'),
-        StringStruct('ProductName', '한국어교육 단어 검사기'),
+        StringStruct('ProductName', '한국어교육 단어 레벨 검사기'),
         StringStruct('ProductVersion', '{version}')])
       ]),
     VarFileInfo([VarStruct('Translation', [1042, 1200])])

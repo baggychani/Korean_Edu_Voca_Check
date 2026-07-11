@@ -14,9 +14,7 @@ class Strictness(StrEnum):
 class IssueStatus(StrEnum):
     allowed = "allowed"
     before_introduced = "before_introduced"
-    unknown_high = "unknown_high"
-    unknown_medium = "unknown_medium"
-    unknown_low = "unknown_low"
+    unknown = "unknown"
     custom_allowed = "custom_allowed"
     ignored_nnp = "ignored_nnp"
     ignored_pattern = "ignored_pattern"
@@ -54,6 +52,7 @@ class Issue(BaseModel):
     end: int = 0
     suggestions: list[str] = Field(default_factory=list)
     review_status: str | None = None
+    equivalent_lemma: str | None = None
 
     @property
     def status_label_ko(self) -> str:
@@ -73,9 +72,7 @@ class AnalyzeSummary(BaseModel):
     total_tokens: int = 0
     issue_count: int = 0
     before_introduced_count: int = 0
-    unknown_high_count: int = 0
-    unknown_medium_count: int = 0
-    unknown_low_count: int = 0
+    unknown_count: int = 0
     ignored_count: int = 0
     allowed_count: int = 0
     max_known_order_index: int | None = None
@@ -104,6 +101,7 @@ class LexemeSearchResult(BaseModel):
     occurrences: list[dict] = Field(default_factory=list)
     verdict_label_ko: str = ""
     other_occurrences: list[str] = Field(default_factory=list)
+    equivalent_forms: list[str] = Field(default_factory=list)
 
 
 class AllowlistItem(BaseModel):

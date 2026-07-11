@@ -86,6 +86,10 @@ class DataPanel(QWidget):
         self.db_path_label.setStyleSheet("color: #64748b; font-size: 11px;")
         self.db_path_label.setWordWrap(True)
         layout.addWidget(self.db_path_label)
+        self.status_label = QLabel("")
+        self.status_label.setObjectName("workStatus")
+        self.status_label.setVisible(False)
+        layout.addWidget(self.status_label)
         layout.addStretch()
 
         self._seed_cb = None
@@ -102,6 +106,12 @@ class DataPanel(QWidget):
         for key, value in counts.items():
             if key in self._value_labels:
                 self._value_labels[key].setText(str(value))
+
+    def set_busy(self, busy: bool, message: str = "") -> None:
+        self.seed_btn.setEnabled(not busy)
+        self.import_btn.setEnabled(not busy)
+        self.status_label.setText(message)
+        self.status_label.setVisible(busy and bool(message))
 
     def _open_db_folder(self) -> None:
         folder = str(DEFAULT_DB_PATH.parent)

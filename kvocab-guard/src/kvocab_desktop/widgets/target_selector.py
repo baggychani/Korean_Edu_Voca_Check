@@ -14,12 +14,6 @@ from PySide6.QtWidgets import (
 from kvocab_core.config import cover_image_path
 from kvocab_core.models import Lesson, Level
 
-_STRICTNESS_LABELS = [
-    ("loose", "느슨하게"),
-    ("balanced", "보통"),
-    ("strict", "엄격하게"),
-]
-
 # 원본 표지 500×~670 (비율 약 3:4) 기준
 _BOOK_W = 148
 _BOOK_H = 198
@@ -103,14 +97,10 @@ class TargetSelector(QWidget):
 
         self.level_combo = QComboBox()
         self.lesson_combo = QComboBox()
-        self.strictness_combo = QComboBox()
-        for combo in (self.level_combo, self.lesson_combo, self.strictness_combo):
+        for combo in (self.level_combo, self.lesson_combo):
             _setup_sidebar_combo(combo)
-        for code, label in _STRICTNESS_LABELS:
-            self.strictness_combo.addItem(label, code)
-        self.strictness_combo.setCurrentIndex(1)
 
-        self.morph_cb = QCheckBox("형태소 분석 사용")
+        self.morph_cb = QCheckBox("형태소 분석기(Kiwi) 사용")
         self.morph_cb.setChecked(True)
         self.morph_cb.setAutoFillBackground(False)
         self.debug_cb = QCheckBox("무시된 항목 표시 (디버그)")
@@ -129,16 +119,12 @@ class TargetSelector(QWidget):
         layout.addWidget(self.cover_label, alignment=Qt.AlignmentFlag.AlignHCenter)
 
         layout.addWidget(_section("검사 설정"))
-        layout.addWidget(_field_label("엄격도"))
-        layout.addWidget(self.strictness_combo)
-        layout.addSpacing(12)
         layout.addWidget(self.morph_cb)
         layout.addWidget(self.debug_cb)
 
         self._lessons_by_level: dict[str, list[Lesson]] = {}
         self.level_combo.currentIndexChanged.connect(self._on_level_changed)
         self.lesson_combo.currentIndexChanged.connect(lambda: self.changed.emit())
-        self.strictness_combo.currentIndexChanged.connect(lambda: self.changed.emit())
 
     def load_levels(self, levels: list[Level], lessons_by_level: dict[str, list[Lesson]]) -> None:
         self._lessons_by_level = lessons_by_level
@@ -181,7 +167,7 @@ class TargetSelector(QWidget):
 
     @property
     def strictness(self) -> str:
-        return self.strictness_combo.currentData() or "balanced"
+        return "balanced"
 
     @property
     def use_morph(self) -> bool:

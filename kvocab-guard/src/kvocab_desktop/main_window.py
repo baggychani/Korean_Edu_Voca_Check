@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
 from PySide6.QtCore import Qt, QThread, Signal
 from PySide6.QtWidgets import (
+    QApplication,
     QFileDialog,
     QFrame,
     QHBoxLayout,
@@ -30,6 +33,28 @@ from kvocab_core.models import Lesson, Level, Lexeme
 from kvocab_core.schemas import AnalyzeRequest, Strictness
 from kvocab_core.seed import full_seed, is_seed_current
 from kvocab_core.tools.import_xlsx import import_vocabulary_xlsx
+from kvocab_desktop.layout_metrics import (
+    ANALYZE_PANEL_MAX_HEIGHT,
+    ANALYZE_PANEL_MIN_HEIGHT,
+    RESULTS_PANEL_MIN_HEIGHT,
+    SIDEBAR_WIDTH,
+    WINDOW_DEFAULT_HEIGHT,
+    WINDOW_DEFAULT_WIDTH,
+    WINDOW_FALLBACK_HEIGHT,
+    WINDOW_FALLBACK_MIN_HEIGHT,
+    WINDOW_FALLBACK_MIN_WIDTH,
+    WINDOW_FALLBACK_WIDTH,
+    WINDOW_INITIAL_HEIGHT_RATIO,
+    WINDOW_INITIAL_WIDTH_RATIO,
+    WINDOW_MIN_HEIGHT,
+    WINDOW_MIN_HEIGHT_FLOOR,
+    WINDOW_MIN_HEIGHT_RATIO,
+    WINDOW_MIN_SCREEN_MARGIN,
+    WINDOW_MIN_WIDTH,
+    WINDOW_MIN_WIDTH_FLOOR,
+    WINDOW_MIN_WIDTH_RATIO,
+    WINDOW_SCREEN_MARGIN,
+)
 from kvocab_desktop.style import APP_STYLESHEET
 from kvocab_desktop.widgets.allowlist_panel import AllowlistPanel
 from kvocab_desktop.widgets.analyze_panel import AnalyzePanel
@@ -37,6 +62,18 @@ from kvocab_desktop.widgets.data_panel import DataPanel
 from kvocab_desktop.widgets.dictionary_panel import DictionaryPanel
 from kvocab_desktop.widgets.results_panel import ResultsPanel
 from kvocab_desktop.widgets.target_selector import TargetSelector
+
+
+def _initial_window_dimension(default: int, available: int, ratio: float) -> int:
+    margin_limited = max(1, available - WINDOW_SCREEN_MARGIN)
+    ratio_limited = max(1, int(available * ratio))
+    return min(default, margin_limited, ratio_limited)
+
+
+def _minimum_window_dimension(default: int, floor: int, available: int, ratio: float) -> int:
+    margin_limited = max(1, available - WINDOW_MIN_SCREEN_MARGIN)
+    ratio_limited = max(1, int(available * ratio))
+    return min(default, margin_limited, max(floor, ratio_limited))
 
 
 class AnalyzeWorker(QThread):
@@ -57,16 +94,72 @@ class AnalyzeWorker(QThread):
             self.failed.emit(str(exc))
 
 
+class DbTaskWorker(QThread):
+    finished_ok = Signal(object)
+    failed = Signal(str)
+
+    def __init__(self, session_factory, task: Callable[[Any], object]) -> None:
+        super().__init__()
+        self.session_factory = session_factory
+        self.task = task
+
+    def run(self) -> None:
+        try:
+            with self.session_factory() as session:
+                result = self.task(session)
+            self.finished_ok.emit(result)
+        except Exception as exc:
+            self.failed.emit(str(exc))
+
+
 class MainWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
         self.setWindowTitle(APP_TITLE)
-        self.resize(1280, 840)
-        self.setMinimumSize(1080, 680)
+        screen = QApplication.primaryScreen()
+        available = screen.availableGeometry() if screen else None
+        if available:
+            initial_width = _initial_window_dimension(
+                WINDOW_DEFAULT_WIDTH,
+                available.width(),
+                WINDOW_INITIAL_WIDTH_RATIO,
+            )
+            initial_height = _initial_window_dimension(
+                WINDOW_DEFAULT_HEIGHT,
+                available.height(),
+                WINDOW_INITIAL_HEIGHT_RATIO,
+            )
+            min_width = min(
+                initial_width,
+                _minimum_window_dimension(
+                    WINDOW_MIN_WIDTH,
+                    WINDOW_MIN_WIDTH_FLOOR,
+                    available.width(),
+                    WINDOW_MIN_WIDTH_RATIO,
+                ),
+            )
+            min_height = min(
+                initial_height,
+                _minimum_window_dimension(
+                    WINDOW_MIN_HEIGHT,
+                    WINDOW_MIN_HEIGHT_FLOOR,
+                    available.height(),
+                    WINDOW_MIN_HEIGHT_RATIO,
+                ),
+            )
+            self.setMinimumSize(min_width, min_height)
+            self.resize(
+                initial_width,
+                initial_height,
+            )
+        else:
+            self.resize(WINDOW_FALLBACK_WIDTH, WINDOW_FALLBACK_HEIGHT)
+            self.setMinimumSize(WINDOW_FALLBACK_MIN_WIDTH, WINDOW_FALLBACK_MIN_HEIGHT)
         self.setStyleSheet(APP_STYLESHEET)
 
         self.session_factory = init_db()
         self._worker: AnalyzeWorker | None = None
+        self._db_worker: DbTaskWorker | None = None
 
         root = QWidget()
         self.setCentralWidget(root)
@@ -78,7 +171,7 @@ class MainWindow(QMainWindow):
         sidebar.setObjectName("sidebar")
         sidebar.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         sidebar.setAutoFillBackground(True)
-        sidebar.setFixedWidth(280)
+        sidebar.setFixedWidth(SIDEBAR_WIDTH)
         sb_layout = QVBoxLayout(sidebar)
         sb_layout.setContentsMargins(22, 28, 22, 24)
         sb_layout.setSpacing(0)
@@ -89,7 +182,7 @@ class MainWindow(QMainWindow):
         logo_lay.setSpacing(3)
         tag = QLabel("한국어교육")
         tag.setObjectName("sidebarTag")
-        title = QLabel("단어 검사기")
+        title = QLabel("단어 레벨 검사기")
         title.setObjectName("sidebarTitle")
         subtitle = QLabel("서울대 한국어 교재 기준")
         subtitle.setObjectName("sidebarSubtitle")
@@ -118,6 +211,10 @@ class MainWindow(QMainWindow):
         content_layout = QVBoxLayout(content)
         content_layout.setContentsMargins(28, 20, 28, 24)
         content_layout.setSpacing(0)
+        self.work_status = QLabel("")
+        self.work_status.setObjectName("workStatus")
+        self.work_status.setVisible(False)
+        content_layout.addWidget(self.work_status)
         self.tabs = QTabWidget()
         content_layout.addWidget(self.tabs)
         main_layout.addWidget(content, stretch=1)
@@ -125,10 +222,14 @@ class MainWindow(QMainWindow):
         analyze_tab = QWidget()
         analyze_layout = QVBoxLayout(analyze_tab)
         analyze_layout.setContentsMargins(0, 12, 0, 0)
-        analyze_layout.setSpacing(16)
+        analyze_layout.setSpacing(0)
         self.analyze_panel = AnalyzePanel()
+        self.analyze_panel.setMinimumHeight(ANALYZE_PANEL_MIN_HEIGHT)
+        self.analyze_panel.setMaximumHeight(ANALYZE_PANEL_MAX_HEIGHT)
         self.results_panel = ResultsPanel()
+        self.results_panel.setMinimumHeight(RESULTS_PANEL_MIN_HEIGHT)
         analyze_layout.addWidget(self.analyze_panel)
+        analyze_layout.addSpacing(14)
         analyze_layout.addWidget(self.results_panel, stretch=1)
         self.tabs.addTab(analyze_tab, "검사")
 
@@ -146,8 +247,8 @@ class MainWindow(QMainWindow):
         self._ensure_default_characters()
         self._refresh_allowlist()
         self._refresh_counts()
-        self._ensure_seeded()
-        self._load_dictionary_default()
+        if not self._ensure_seeded():
+            self._load_dictionary_default()
 
     def _wire_events(self) -> None:
         self.analyze_panel.analyze_requested.connect(self._run_analyze)
@@ -164,12 +265,14 @@ class MainWindow(QMainWindow):
         with self.session_factory() as session:
             ensure_default_allowlist(session)
 
-    def _ensure_seeded(self) -> None:
+    def _ensure_seeded(self) -> bool:
         with self.session_factory() as session:
             count = session.query(Lexeme).count()
             seed_current = is_seed_current(session) if count else False
         if count == 0 or not seed_current:
             self._run_seed(silent=True)
+            return True
+        return False
 
     def _load_target_data(self) -> None:
         with self.session_factory() as session:
@@ -271,8 +374,8 @@ class MainWindow(QMainWindow):
             detail = f"\n교재상 처음 등장: {first_seen}\n"
         reply = QMessageBox.question(
             self,
-            "허용 목록에 추가",
-            f"「{label}」의 원형 「{text}」을(를) 허용 목록에 추가합니다.{detail}\n"
+            "허용어 목록에 추가",
+            f"「{label}」의 원형 「{text}」을(를) 허용어 목록에 추가합니다.{detail}\n"
             f"현재 목표 단원({target})과 관계없이, "
             "앞으로 모든 검사에서 이 원형은 경고하지 않습니다.\n\n"
             "계속하시겠습니까?",
@@ -290,8 +393,8 @@ class MainWindow(QMainWindow):
         self._refresh_allowlist()
         QMessageBox.information(
             self,
-            "허용 목록",
-            f"원형 「{text}」을(를) 허용 목록에 추가했습니다.\n"
+            "허용어 목록",
+            f"원형 「{text}」을(를) 허용어 목록에 추가했습니다.\n"
             "목표 단원을 바꿔도 이 원형은 경고하지 않습니다.",
         )
 
@@ -341,6 +444,43 @@ class MainWindow(QMainWindow):
         with self.session_factory() as session:
             self.data_panel.show_counts(get_counts(session))
 
+    def _start_db_task(
+        self,
+        task: Callable[[Any], object],
+        *,
+        busy_message: str,
+        error_title: str,
+        on_success: Callable[[object], None],
+    ) -> None:
+        if self._db_worker is not None and self._db_worker.isRunning():
+            QMessageBox.information(self, "작업 진행 중", "DB 작업이 이미 진행 중입니다.")
+            return
+        worker = DbTaskWorker(self.session_factory, task)
+        self._db_worker = worker
+        worker.finished_ok.connect(lambda result: self._on_db_task_done(result, on_success))
+        worker.failed.connect(lambda msg: self._on_db_task_failed(msg, error_title))
+        worker.finished.connect(lambda: self._release_db_worker(worker))
+        self._set_db_busy(True, busy_message)
+        worker.start()
+
+    def _on_db_task_done(self, result, on_success: Callable[[object], None]) -> None:
+        self._set_db_busy(False)
+        on_success(result)
+
+    def _on_db_task_failed(self, msg: str, title: str) -> None:
+        self._set_db_busy(False)
+        QMessageBox.critical(self, title, msg)
+
+    def _release_db_worker(self, worker: DbTaskWorker) -> None:
+        if self._db_worker is worker:
+            self._db_worker = None
+        worker.deleteLater()
+
+    def _set_db_busy(self, busy: bool, message: str = "") -> None:
+        self.work_status.setText(message)
+        self.work_status.setVisible(busy and bool(message))
+        self.data_panel.set_busy(busy, message)
+
     def _run_seed(self, silent: bool = False) -> None:
         if not silent:
             reply = QMessageBox.warning(
@@ -354,19 +494,24 @@ class MainWindow(QMainWindow):
             )
             if reply != QMessageBox.StandardButton.Yes:
                 return
-        try:
-            with self.session_factory() as session:
-                stats = full_seed(session, preserve_allowlist=True)
+
+        def on_success(stats: object) -> None:
             invalidate_lexeme_index()
             self._load_target_data()
             self._refresh_counts()
             self._refresh_allowlist()
+            self._load_dictionary_default()
             if not silent:
                 QMessageBox.information(
                     self, "Seed 완료", f"DB를 초기화하고 seed를 불러왔습니다.\n{stats}"
                 )
-        except Exception as exc:
-            QMessageBox.critical(self, "Seed 오류", str(exc))
+
+        self._start_db_task(
+            lambda session: full_seed(session, preserve_allowlist=True),
+            busy_message="DB를 초기화하고 seed를 불러오는 중입니다.",
+            error_title="Seed 오류",
+            on_success=on_success,
+        )
 
     def _run_import_xlsx(self) -> None:
         path, _ = QFileDialog.getOpenFileName(
@@ -374,11 +519,15 @@ class MainWindow(QMainWindow):
         )
         if not path:
             return
-        try:
-            with self.session_factory() as session:
-                stats = import_vocabulary_xlsx(session, Path(path))
+        def on_success(stats: object) -> None:
             invalidate_lexeme_index()
             self._refresh_counts()
             QMessageBox.information(self, "가져오기 완료", str(stats))
-        except Exception as exc:
-            QMessageBox.critical(self, "가져오기 오류", str(exc))
+
+        xlsx_path = Path(path)
+        self._start_db_task(
+            lambda session: import_vocabulary_xlsx(session, xlsx_path),
+            busy_message="XLSX를 가져오는 중입니다.",
+            error_title="가져오기 오류",
+            on_success=on_success,
+        )

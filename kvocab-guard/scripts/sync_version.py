@@ -8,6 +8,17 @@ import re
 import sys
 from pathlib import Path
 
+
+def _configure_console_encoding() -> None:
+    """Keep status/error output printable on Windows runners using cp1252."""
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is not None:
+            reconfigure(encoding="utf-8")
+
+
+_configure_console_encoding()
+
 ROOT = Path(__file__).resolve().parents[1]
 CONFIG_PATH = ROOT / "src" / "kvocab_core" / "config.py"
 PYPROJECT_PATH = ROOT / "pyproject.toml"

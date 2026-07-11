@@ -123,24 +123,37 @@ class TargetSelector(QWidget):
         layout.addWidget(self.debug_cb)
 
         self._lessons_by_level: dict[str, list[Lesson]] = {}
-        self.level_combo.currentIndexChanged.connect(self._on_level_changed)
-        self.lesson_combo.currentIndexChanged.connect(lambda: self.changed.emit())
+        self.level_combo.currentIndexChanged.connect(lambda _index: self._on_level_changed())
+        self.lesson_combo.currentIndexChanged.connect(lambda _index: self.changed.emit())
 
-    def load_levels(self, levels: list[Level], lessons_by_level: dict[str, list[Lesson]]) -> None:
+    def load_levels(
+        self,
+        levels: list[Level],
+        lessons_by_level: dict[str, list[Lesson]],
+        *,
+        selected_level: str | None = None,
+        selected_lesson: str | None = None,
+    ) -> None:
         self._lessons_by_level = lessons_by_level
         self.level_combo.blockSignals(True)
         self.level_combo.clear()
         for lv in sorted(levels, key=lambda x: x.sort_order):
             self.level_combo.addItem(lv.title_ko, lv.level)
+        level_index = self.level_combo.findData(selected_level)
+        if level_index >= 0:
+            self.level_combo.setCurrentIndex(level_index)
         self.level_combo.blockSignals(False)
-        self._on_level_changed()
+        self._on_level_changed(selected_lesson=selected_lesson)
 
-    def _on_level_changed(self) -> None:
+    def _on_level_changed(self, *, selected_lesson: str | None = None) -> None:
         code = self.level_combo.currentData()
         self.lesson_combo.blockSignals(True)
         self.lesson_combo.clear()
         for ls in self._lessons_by_level.get(code, []):
             self.lesson_combo.addItem(f"{ls.lesson}  ·  {ls.unit_topic}", ls.lesson)
+        lesson_index = self.lesson_combo.findData(selected_lesson)
+        if lesson_index >= 0:
+            self.lesson_combo.setCurrentIndex(lesson_index)
         self.lesson_combo.blockSignals(False)
         self._update_cover(code)
         self.changed.emit()

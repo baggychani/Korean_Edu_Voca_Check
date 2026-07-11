@@ -55,6 +55,7 @@ from kvocab_desktop.layout_metrics import (
     WINDOW_MIN_WIDTH_RATIO,
     WINDOW_SCREEN_MARGIN,
 )
+from kvocab_desktop.prefs import load_prefs, save_prefs
 from kvocab_desktop.style import APP_STYLESHEET
 from kvocab_desktop.widgets.allowlist_panel import AllowlistPanel
 from kvocab_desktop.widgets.analyze_panel import AnalyzePanel
@@ -260,6 +261,7 @@ class MainWindow(QMainWindow):
         self.dict_panel.set_search_callback(self._run_dictionary_search)
         self.allow_panel.set_callbacks(None, self._add_allow_item, self._delete_allow_item)
         self.data_panel.set_callbacks(self._run_seed, self._run_import_xlsx)
+        self.target_selector.changed.connect(self._save_target_selection)
 
     def _ensure_default_characters(self) -> None:
         with self.session_factory() as session:
@@ -275,13 +277,29 @@ class MainWindow(QMainWindow):
         return False
 
     def _load_target_data(self) -> None:
+        prefs = load_prefs()
         with self.session_factory() as session:
             levels = session.query(Level).order_by(Level.sort_order).all()
             lessons = session.query(Lesson).order_by(Lesson.order_index).all()
         by_level: dict[str, list[Lesson]] = {}
         for ls in lessons:
             by_level.setdefault(ls.level, []).append(ls)
-        self.target_selector.load_levels(levels, by_level)
+        self.target_selector.load_levels(
+            levels,
+            by_level,
+            selected_level=prefs.get("last_target_level"),
+            selected_lesson=prefs.get("last_target_lesson"),
+        )
+
+    def _save_target_selection(self) -> None:
+        level = self.target_selector.target_level
+        lesson = self.target_selector.target_lesson
+        if not level or not lesson:
+            return
+        prefs = load_prefs()
+        prefs["last_target_level"] = level
+        prefs["last_target_lesson"] = lesson
+        save_prefs(prefs)
 
     def _target_order_index(self) -> int | None:
         with self.session_factory() as session:

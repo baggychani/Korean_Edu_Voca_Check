@@ -22,11 +22,15 @@ def load_prefs() -> dict:
     if not fp.is_file():
         return {}
     try:
-        return json.loads(fp.read_text(encoding="utf-8"))
+        data = json.loads(fp.read_text(encoding="utf-8"))
+        return data if isinstance(data, dict) else {}
     except (json.JSONDecodeError, OSError):
         return {}
 
 
 def save_prefs(prefs: dict) -> None:
     fp = app_data_dir() / _PREFS_NAME
-    fp.write_text(json.dumps(prefs, ensure_ascii=False, indent=2), encoding="utf-8")
+    try:
+        fp.write_text(json.dumps(prefs, ensure_ascii=False, indent=2), encoding="utf-8")
+    except OSError:
+        return

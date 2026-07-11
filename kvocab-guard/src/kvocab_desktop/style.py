@@ -224,7 +224,7 @@ QLabel#selectionHint {
     background: transparent;
 }
 QLabel#selectedExpression {
-    font-size: 17px;
+    font-size: 16px;
     font-weight: 700;
     color: #111827;
     background: transparent;

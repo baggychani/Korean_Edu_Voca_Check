@@ -77,6 +77,17 @@ def test_results_panel_clear_resets_selection_without_error() -> None:
     assert not panel.allow_btn.isEnabled()
 
 
+def test_selection_bar_stays_visible_at_compact_height() -> None:
+    app = _app()
+    panel = ResultsPanel()
+    panel.resize(900, 320)
+    panel.show()
+    app.processEvents()
+
+    assert panel.selection_bar.isVisible()
+    assert panel.selection_bar.geometry().bottom() <= panel.rect().bottom()
+
+
 def test_all_filter_includes_allowed_and_warning_rows() -> None:
     _app()
     panel = ResultsPanel()

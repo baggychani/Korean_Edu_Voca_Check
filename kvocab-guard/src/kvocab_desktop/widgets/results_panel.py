@@ -9,6 +9,7 @@ from PySide6.QtWidgets import (
     QHeaderView,
     QLabel,
     QPushButton,
+    QSizePolicy,
     QStyledItemDelegate,
     QStyleOptionViewItem,
     QTableWidget,
@@ -259,6 +260,9 @@ class ResultsPanel(QWidget):
         self.table.horizontalHeader().setSectionsClickable(False)
         self.table.horizontalHeader().setSortIndicatorShown(False)
         self.table.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        # On high-DPI 1080p displays the available logical height can be small.
+        # Let the table yield vertical space before the selection actions are clipped.
+        self.table.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Ignored)
         self.table.setItemDelegateForColumn(_COL_VERDICT, _VerdictItemDelegate(self.table))
         _apply_flex_column_widths(self.table)
         self.table.viewport().installEventFilter(self)
@@ -270,10 +274,10 @@ class ResultsPanel(QWidget):
         layout.addLayout(table_section, stretch=1)
         layout.addSpacing(12)
 
-        selection_bar = QFrame()
-        selection_bar.setObjectName("selectionBar")
-        selection_bar.setMaximumHeight(56)
-        sel_layout = QHBoxLayout(selection_bar)
+        self.selection_bar = QFrame()
+        self.selection_bar.setObjectName("selectionBar")
+        self.selection_bar.setFixedHeight(56)
+        sel_layout = QHBoxLayout(self.selection_bar)
         sel_layout.setContentsMargins(14, 6, 14, 6)
         sel_layout.setSpacing(10)
         sel_text_col = QVBoxLayout()
@@ -304,7 +308,7 @@ class ResultsPanel(QWidget):
         btn_col.addWidget(self.copy_btn)
         btn_col.addWidget(self.copy_sentence_btn)
         sel_layout.addLayout(btn_col)
-        layout.addWidget(selection_bar)
+        layout.addWidget(self.selection_bar)
 
         self._issues: list[Issue] = []
         self._allowed: list[Issue] = []

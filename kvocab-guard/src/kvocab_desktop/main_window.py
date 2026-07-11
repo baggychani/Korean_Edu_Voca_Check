@@ -339,7 +339,7 @@ class MainWindow(QMainWindow):
         self.results_panel.clear()
 
     def _set_analyze_ui_busy(self, busy: bool) -> None:
-        self.analyze_panel.run_btn.setText("검사 중…" if busy else "텍스트 검사")
+        self.analyze_panel.run_btn.setText("검사 중…" if busy else "🔍 텍스트 검사")
         self.analyze_panel.run_btn.setEnabled(not busy)
 
     def _run_analyze(self) -> None:

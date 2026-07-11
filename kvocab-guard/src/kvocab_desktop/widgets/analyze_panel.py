@@ -56,9 +56,13 @@ class AnalyzePanel(QWidget):
 
         card = QFrame()
         card.setObjectName("card")
+        card.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Maximum)
         layout = QVBoxLayout(card)
-        layout.setContentsMargins(20, 18, 20, 18)
-        layout.setSpacing(14)
+        # 버튼 위·아래 간격은 동일하게 (아래 기준)
+        action_gap = 10
+        layout.setContentsMargins(20, 14, 20, 0)
+        layout.setSpacing(0)
+        layout.setAlignment(Qt.AlignmentFlag.AlignTop)
 
         header_row = QHBoxLayout()
         header_row.setSpacing(8)
@@ -70,6 +74,7 @@ class AnalyzePanel(QWidget):
         header_row.addStretch()
         header_row.addWidget(hint)
         layout.addLayout(header_row)
+        layout.addSpacing(8)
 
         input_frame = QFrame()
         input_frame.setObjectName("inputFrame")
@@ -93,10 +98,11 @@ class AnalyzePanel(QWidget):
 
         btn_wrap = QWidget()
         btn_wrap.setObjectName("analyzeActions")
+        btn_wrap.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
         btn_row = QHBoxLayout(btn_wrap)
-        btn_row.setContentsMargins(0, 0, 0, 0)
+        btn_row.setContentsMargins(0, action_gap, 0, action_gap)
         btn_row.setSpacing(8)
-        self.run_btn = QPushButton("텍스트 검사")
+        self.run_btn = QPushButton("🔍 텍스트 검사")
         self.run_btn.setObjectName("primaryAnalyzeButton")
         self.run_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self.open_btn = QPushButton("파일 열기")
@@ -121,6 +127,7 @@ class AnalyzePanel(QWidget):
         btn_row.addWidget(self.run_btn)
         layout.addWidget(btn_wrap)
 
+        outer.setAlignment(Qt.AlignmentFlag.AlignTop)
         outer.addWidget(card)
 
         self._red_selections: list[QTextEdit.ExtraSelection] = []

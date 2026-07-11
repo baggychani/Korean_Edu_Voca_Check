@@ -3,7 +3,7 @@ from __future__ import annotations
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
-from kvocab_core.config import INCLUDE_DRAFT_DATA, USABLE_REVIEW_STATUSES
+from kvocab_core.config import matching_review_statuses
 from kvocab_core.equivalent_forms import canonical_form, equivalent_forms_for
 from kvocab_core.models import Lexeme, Occurrence
 from kvocab_core.normalization import lemma_gana_sort_key, normalize_key
@@ -22,6 +22,12 @@ def _verdict_for_target(
     return status_label_ko("before_introduced")
 
 
+def _lexeme_base_query(session: Session):
+    return session.query(Lexeme).filter(
+        Lexeme.review_status.in_(matching_review_statuses())
+    )
+
+
 def search_lexemes(
     session: Session,
     query: str,
@@ -35,9 +41,7 @@ def search_lexemes(
     if not q:
         return []
 
-    base = session.query(Lexeme)
-    if not INCLUDE_DRAFT_DATA:
-        base = base.filter(Lexeme.review_status.in_(USABLE_REVIEW_STATUSES))
+    base = _lexeme_base_query(session)
 
     canonical = canonical_form(q)
     exact_keys = [q]
@@ -163,9 +167,7 @@ def list_lexemes(
     target_order_index: int | None = None,
     limit: int = 5000,
 ) -> list[LexemeSearchResult]:
-    base = session.query(Lexeme)
-    if not INCLUDE_DRAFT_DATA:
-        base = base.filter(Lexeme.review_status.in_(USABLE_REVIEW_STATUSES))
+    base = _lexeme_base_query(session)
 
     rows = base.limit(limit).all()
     rows.sort(key=lambda lex: lemma_gana_sort_key(lex.lemma))

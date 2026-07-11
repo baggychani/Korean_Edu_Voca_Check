@@ -25,6 +25,9 @@ Compression=lzma2/ultra64
 SolidCompression=yes
 WizardStyle=modern
 DisableProgramGroupPage=yes
+CloseApplications=yes
+CloseApplicationsFilter=KVocabGuard.exe
+RestartApplications=no
 
 [Languages]
 Name: "korean"; MessagesFile: "compiler:Languages\Korean.isl"

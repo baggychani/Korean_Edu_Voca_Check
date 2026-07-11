@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
+
 _TOKEN_RE = re.compile(r"[가-힣A-Za-z0-9]+|[.,!?;:\"'()\[\]{}]")
 
 # 용언류: 사전형 복원 시 "다"를 붙인다 (먹 -> 먹다)
@@ -51,7 +52,8 @@ class KiwiMorphAnalyzer:
     def __init__(self) -> None:
         from kiwipiepy import Kiwi
 
-        self._kiwi = Kiwi()
+        # 스레드당 1코어: 앱 쪽에서 문장 단위 병렬을 담당한다.
+        self._kiwi = Kiwi(num_workers=1)
 
     def analyze(self, text: str) -> list[MorphToken]:
         tokens: list[MorphToken] = []
@@ -91,10 +93,24 @@ def _get_backend() -> tuple[KiwiMorphAnalyzer, str]:
 
 
 class KoreanMorphAnalyzer:
-    """Kiwi 형태소 분석기. 백엔드는 프로세스 내 공유(싱글톤)."""
+    """Kiwi 형태소 분석기.
 
-    def __init__(self) -> None:
-        self._backend, self.backend_name = _get_backend()
+    shared=True(기본): 프로세스 내 싱글톤 — UI 단일 스레드·인덱스용.
+    shared=False: 스레드별 독립 인스턴스 — 병렬 문장 분석용.
+    """
+
+    def __init__(self, *, shared: bool = True) -> None:
+        if shared:
+            self._backend, self.backend_name = _get_backend()
+            return
+        try:
+            self._backend = KiwiMorphAnalyzer()
+            self.backend_name = "kiwi"
+        except Exception as exc:
+            raise MorphInitializationError(
+                "Kiwi 형태소 분석기를 초기화할 수 없습니다. "
+                "kiwipiepy와 kiwipiepy_model이 올바르게 설치/포함되어 있는지 확인하세요."
+            ) from exc
 
     def analyze(self, text: str) -> list[MorphToken]:
         return self._backend.analyze(text)

@@ -117,12 +117,18 @@ def find_seed_xlsx() -> Path:
 
 DEFAULT_SEED_XLSX = find_seed_xlsx()
 
-# v1: include OCR draft rows in matching
-INCLUDE_DRAFT_DATA = True
+# OCR draft 행을 매칭·사전에 포함할지 (1.0.0 기본: 검수 완료만)
+INCLUDE_DRAFT_DATA = False
 
-USABLE_REVIEW_STATUSES = frozenset(
-    {"approved", "manually_reviewed", "draft_ocr_needs_manual_review"}
-)
+USABLE_REVIEW_STATUSES = frozenset({"approved", "manually_reviewed"})
+DRAFT_REVIEW_STATUSES = frozenset({"draft_ocr_needs_manual_review"})
+
+
+def matching_review_statuses() -> frozenset[str]:
+    if INCLUDE_DRAFT_DATA:
+        return frozenset(USABLE_REVIEW_STATUSES | DRAFT_REVIEW_STATUSES)
+    return USABLE_REVIEW_STATUSES
+
 
 EXCLUDED_REVIEW_STATUSES = frozenset({"unmapped", "rejected"})
 

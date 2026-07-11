@@ -102,6 +102,18 @@ def test_analyze_panel_ctrl_enter_requests_analysis() -> None:
     assert spy.count() == 1
 
 
+def test_analyze_panel_content_edited_emits_on_text_change() -> None:
+    app = _app()
+    panel = AnalyzePanel()
+    panel.show()
+    spy = QSignalSpy(panel.content_edited)
+
+    panel.text_edit.insertPlainText("가")
+    app.processEvents()
+
+    assert spy.count() >= 1
+
+
 def test_analyze_panel_paste_discards_rich_text_formatting() -> None:
     _app()
     panel = AnalyzePanel()

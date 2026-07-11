@@ -161,6 +161,7 @@ class MainWindow(QMainWindow):
         self.session_factory = init_db()
         self._worker: AnalyzeWorker | None = None
         self._db_worker: DbTaskWorker | None = None
+        self._seed_pending = False
 
         root = QWidget()
         self.setCentralWidget(root)
@@ -254,6 +255,7 @@ class MainWindow(QMainWindow):
     def _wire_events(self) -> None:
         self.analyze_panel.analyze_requested.connect(self._run_analyze)
         self.analyze_panel.clear_requested.connect(self._on_analyze_clear)
+        self.analyze_panel.content_edited.connect(self.results_panel.clear)
         self.results_panel.sentence_highlight_requested.connect(self.analyze_panel.highlight_issue)
         self.results_panel.issue_selected.connect(self.analyze_panel.highlight_issue)
         self.results_panel.allow_requested.connect(self._add_allow)
@@ -267,12 +269,21 @@ class MainWindow(QMainWindow):
         with self.session_factory() as session:
             ensure_default_allowlist(session)
 
+    def _db_busy(self) -> bool:
+        return self._db_worker is not None and self._db_worker.isRunning()
+
+    def _analyze_busy(self) -> bool:
+        return self._worker is not None and self._worker.isRunning()
+
     def _ensure_seeded(self) -> bool:
         with self.session_factory() as session:
             count = session.query(Lexeme).count()
             seed_current = is_seed_current(session) if count else False
-        if count == 0 or not seed_current:
-            self._run_seed(silent=True)
+        if count == 0:
+            self._run_seed(silent=True, warn_import_loss=False)
+            return True
+        if not seed_current:
+            self._run_seed(silent=True, warn_import_loss=True)
             return True
         return False
 
@@ -327,27 +338,46 @@ class MainWindow(QMainWindow):
         self.analyze_panel.clear_marks()
         self.results_panel.clear()
 
+    def _set_analyze_ui_busy(self, busy: bool) -> None:
+        self.analyze_panel.run_btn.setText("검사 중…" if busy else "텍스트 검사")
+        self.analyze_panel.run_btn.setEnabled(not busy)
+
     def _run_analyze(self) -> None:
+        if self._analyze_busy():
+            return
+        if self._db_busy() or self._seed_pending:
+            QMessageBox.information(
+                self,
+                "작업 진행 중",
+                "어휘 데이터를 준비하는 중입니다. 잠시 후 다시 검사해 주세요.",
+            )
+            return
         if not self.analyze_panel.get_text().strip():
             QMessageBox.warning(self, "입력 필요", "검사할 텍스트를 입력하세요.")
             return
         self.analyze_panel.clear_marks()
-        self.analyze_panel.run_btn.setText("검사 중…")
-        self.analyze_panel.run_btn.setEnabled(False)
-        self._worker = AnalyzeWorker(self.session_factory, self._build_request())
-        self._worker.finished_ok.connect(self._on_analyze_done)
-        self._worker.failed.connect(self._on_analyze_fail)
-        self._worker.start()
+        self._set_analyze_ui_busy(True)
+        worker = AnalyzeWorker(self.session_factory, self._build_request())
+        self._worker = worker
+        worker.finished_ok.connect(self._on_analyze_done)
+        worker.failed.connect(self._on_analyze_fail)
+        worker.finished.connect(lambda: self._release_analyze_worker(worker))
+        worker.start()
+
+    def _release_analyze_worker(self, worker: AnalyzeWorker | None) -> None:
+        if worker is None:
+            return
+        if self._worker is worker:
+            self._worker = None
+        worker.deleteLater()
 
     def _on_analyze_done(self, result) -> None:
-        self.analyze_panel.run_btn.setText("텍스트 검사")
-        self.analyze_panel.run_btn.setEnabled(True)
+        self._set_analyze_ui_busy(False)
         self.results_panel.show_result(result)
         self.analyze_panel.apply_before_introduced_marks(result.issues)
 
     def _on_analyze_fail(self, msg: str) -> None:
-        self.analyze_panel.run_btn.setText("텍스트 검사")
-        self.analyze_panel.run_btn.setEnabled(True)
+        self._set_analyze_ui_busy(False)
         QMessageBox.critical(self, "검사 오류", msg)
 
     def _run_dictionary_search(self, query: str) -> None:
@@ -469,24 +499,39 @@ class MainWindow(QMainWindow):
         busy_message: str,
         error_title: str,
         on_success: Callable[[object], None],
-    ) -> None:
-        if self._db_worker is not None and self._db_worker.isRunning():
+    ) -> bool:
+        if self._analyze_busy():
+            QMessageBox.information(
+                self,
+                "작업 진행 중",
+                "텍스트 검사가 진행 중입니다. 검사가 끝난 뒤 다시 시도해 주세요.",
+            )
+            return False
+        if self._db_busy():
             QMessageBox.information(self, "작업 진행 중", "DB 작업이 이미 진행 중입니다.")
-            return
+            return False
         worker = DbTaskWorker(self.session_factory, task)
         self._db_worker = worker
         worker.finished_ok.connect(lambda result: self._on_db_task_done(result, on_success))
         worker.failed.connect(lambda msg: self._on_db_task_failed(msg, error_title))
         worker.finished.connect(lambda: self._release_db_worker(worker))
         self._set_db_busy(True, busy_message)
+        self.analyze_panel.run_btn.setEnabled(False)
         worker.start()
+        return True
 
     def _on_db_task_done(self, result, on_success: Callable[[object], None]) -> None:
+        self._seed_pending = False
         self._set_db_busy(False)
+        if not self._analyze_busy():
+            self.analyze_panel.run_btn.setEnabled(True)
         on_success(result)
 
     def _on_db_task_failed(self, msg: str, title: str) -> None:
+        self._seed_pending = False
         self._set_db_busy(False)
+        if not self._analyze_busy():
+            self.analyze_panel.run_btn.setEnabled(True)
         QMessageBox.critical(self, title, msg)
 
     def _release_db_worker(self, worker: DbTaskWorker) -> None:
@@ -499,16 +544,32 @@ class MainWindow(QMainWindow):
         self.work_status.setVisible(busy and bool(message))
         self.data_panel.set_busy(busy, message)
 
-    def _run_seed(self, silent: bool = False) -> None:
+    def _run_seed(self, silent: bool = False, *, warn_import_loss: bool = False) -> None:
         if not silent:
             reply = QMessageBox.warning(
                 self,
                 "DB 초기화",
                 "DB를 초기화하고 seed를 다시 불러옵니다.\n"
-                "어휘 데이터는 새로 불러오고, 사용자가 추가한 허용어는 보존됩니다.\n\n"
+                "어휘 데이터는 새로 불러오고, 사용자가 추가한 허용어는 보존됩니다.\n"
+                "직접 가져온(XLSX import) 어휘는 삭제됩니다.\n\n"
                 "정말 계속하시겠습니까?",
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
                 QMessageBox.StandardButton.No,
+            )
+            if reply != QMessageBox.StandardButton.Yes:
+                return
+        elif warn_import_loss:
+            reply = QMessageBox.warning(
+                self,
+                "어휘 데이터 갱신",
+                "앱에 포함된 어휘 데이터가 업데이트되었습니다.\n"
+                "DB를 새로 불러옵니다.\n\n"
+                "· 사용자가 추가한 허용어는 보존됩니다.\n"
+                "· 직접 가져온(XLSX import) 어휘는 삭제됩니다.\n\n"
+                "지금 갱신할까요?\n"
+                "(아니오를 누르면 이전 어휘로 계속 사용합니다.)",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.Yes,
             )
             if reply != QMessageBox.StandardButton.Yes:
                 return
@@ -524,12 +585,15 @@ class MainWindow(QMainWindow):
                     self, "Seed 완료", f"DB를 초기화하고 seed를 불러왔습니다.\n{stats}"
                 )
 
-        self._start_db_task(
+        self._seed_pending = True
+        started = self._start_db_task(
             lambda session: full_seed(session, preserve_allowlist=True),
             busy_message="DB를 초기화하고 seed를 불러오는 중입니다.",
             error_title="Seed 오류",
             on_success=on_success,
         )
+        if not started:
+            self._seed_pending = False
 
     def _run_import_xlsx(self) -> None:
         path, _ = QFileDialog.getOpenFileName(
@@ -549,3 +613,9 @@ class MainWindow(QMainWindow):
             error_title="가져오기 오류",
             on_success=on_success,
         )
+
+    def closeEvent(self, event) -> None:  # noqa: N802
+        for worker in (self._worker, self._db_worker):
+            if worker is not None and worker.isRunning():
+                worker.wait(8000)
+        super().closeEvent(event)

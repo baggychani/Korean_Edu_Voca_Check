@@ -1,4 +1,4 @@
-# workflow_dispatch 로 수동 실행 → 테스트 → Windows 빌드 → GitHub Release
+# workflow_dispatch 로 수동 실행 → 테스트∥버전준비 → Windows 빌드 → GitHub Release
 name: Release
 
 on:
@@ -19,7 +19,7 @@ permissions:
 
 concurrency:
   group: release-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 defaults:
   run:
@@ -27,7 +27,7 @@ defaults:
 
 jobs:
   prepare:
-    name: Version sync & validate
+    name: Resolve version
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.out.outputs.version }}
@@ -38,6 +38,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+          cache: pip
+          cache-dependency-path: kvocab-guard/pyproject.toml
 
       - name: Resolve version
         id: out
@@ -52,33 +54,21 @@ jobs:
           echo "tag=v${VER}" >> "$GITHUB_OUTPUT"
           echo "Resolved version: ${VER}"
 
-      - name: Sync version files
-        run: python scripts/sync_version.py --set "${{ steps.out.outputs.version }}"
-
-      - name: Verify version consistency
-        run: python scripts/sync_version.py --check
-
-      - name: Upload synced metadata
-        uses: actions/upload-artifact@v4
-        with:
-          name: version-metadata
-          retention-days: 7
-          path: |
-            kvocab-guard/src/kvocab_core/config.py
-            kvocab-guard/pyproject.toml
-            kvocab-guard/release/info.txt
-            kvocab-guard/KVocabGuard.iss
-            kvocab-guard/release/complete.txt
+      - name: Validate version sync script
+        run: |
+          python scripts/sync_version.py --set "${{ steps.out.outputs.version }}"
+          python scripts/sync_version.py --check
 
   test:
     name: Tests
-    needs: prepare
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+          cache: pip
+          cache-dependency-path: kvocab-guard/pyproject.toml
       - run: pip install -e ".[dev]"
       - name: Install Qt runtime (headless Linux)
         run: |
@@ -99,15 +89,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Download synced version files
-        uses: actions/download-artifact@v4
-        with:
-          name: version-metadata
-          path: kvocab-guard
-
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+          cache: pip
+          cache-dependency-path: kvocab-guard/pyproject.toml
+
+      - name: Sync release version
+        shell: pwsh
+        run: |
+          python scripts/sync_version.py --set "${{ needs.prepare.outputs.version }}"
+          python scripts/sync_version.py --check
 
       - run: pip install -e ".[dev]" pyinstaller
 
@@ -117,7 +109,7 @@ jobs:
           if (Test-Path "assets/logo_source.png") {
             python scripts/rebuild_icon.py
           } else {
-            Write-Host "logo_source.png not found; using committed app_icon assets"
+            Write-Host "logo_source.png not found; using committed app_icon/setup_icon assets"
           }
 
       - name: PyInstaller (onedir)
@@ -194,13 +186,32 @@ jobs:
           $setup | ForEach-Object { Write-Host "  $($_.FullName)" }
           $zip | ForEach-Object { Write-Host "  $($_.FullName)" }
 
+      - name: Write release notes
+        shell: pwsh
+        working-directory: kvocab-guard
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          @"
+          ## 한국어교육 단어 레벨 검사기 ${env:VERSION}
+
+          ### 다운로드
+          - **설치형:** ``KVocabGuard_v${env:VERSION}_Setup.exe`` (권장)
+          - **포터블:** ``KVocabGuard-windows-x64-portable-v${env:VERSION}.zip``
+
+          ### 안내
+          - 이미 설치된 경우 Setup을 다시 실행하면 같은 위치에 덮어씁니다.
+          - 사용법·판정 의미는 저장소 README를 참고하세요.
+          - 문제 제보: https://github.com/baggychani/Korean_Edu_Voca_Check/issues
+          "@ | Set-Content -Path release\RELEASE_NOTES.md -Encoding utf8
+
       - name: Create GitHub Release
         if: inputs.create_github_release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ needs.prepare.outputs.tag }}
           name: 한국어교육 단어 레벨 검사기 ${{ needs.prepare.outputs.version }}
-          body_path: README.md
+          body_path: kvocab-guard/release/RELEASE_NOTES.md
           generate_release_notes: false
           files: |
             kvocab-guard/release/KVocabGuard_v*_Setup.exe

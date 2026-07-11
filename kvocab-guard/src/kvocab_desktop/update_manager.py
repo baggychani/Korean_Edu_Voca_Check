@@ -41,7 +41,6 @@ class UpdateManager(QObject):
         return True
 
     def _on_check_finished(self, current_version: str, check_time: datetime) -> None:
-        success = False
         try:
             if self.reply is None:
                 return
@@ -49,7 +48,6 @@ class UpdateManager(QObject):
                 return
 
             data = json.loads(self.reply.readAll().data().decode("utf-8"))
-            success = True
             latest_tag = data.get("tag_name", "").strip()
             latest_version = latest_tag.lstrip("vV")
             html_url = data.get("html_url", GITHUB_RELEASE_URL)
@@ -60,7 +58,8 @@ class UpdateManager(QObject):
         except (json.JSONDecodeError, KeyError, TypeError, UnicodeDecodeError):
             pass
         finally:
-            if success and self.on_success_callback:
+            # 성공/실패 모두 시각 저장 → 오프라인에서 매 실행마다 API 재시도 방지
+            if self.on_success_callback:
                 self.on_success_callback(check_time.isoformat())
             if self.reply is not None:
                 self.reply.deleteLater()

@@ -46,6 +46,7 @@ class AnalyzePanel(QWidget):
     analyze_requested = Signal()
     file_loaded = Signal(str)
     clear_requested = Signal()
+    content_edited = Signal()
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
@@ -132,7 +133,7 @@ class AnalyzePanel(QWidget):
         self.redo_btn.clicked.connect(self._redo_text)
         self.text_edit.undoAvailable.connect(self.undo_btn.setEnabled)
         self.text_edit.redoAvailable.connect(self.redo_btn.setEnabled)
-        self.text_edit.textChanged.connect(self.clear_marks)
+        self.text_edit.textChanged.connect(self._on_text_changed)
         self.text_edit.analyze_requested.connect(self.analyze_requested.emit)
 
         self._undo_shortcut = QShortcut(QKeySequence("Ctrl+Z"), self)
@@ -174,6 +175,10 @@ class AnalyzePanel(QWidget):
         self._red_selections = []
         self._sentence_selection = None
         self.text_edit.setExtraSelections([])
+
+    def _on_text_changed(self) -> None:
+        self.clear_marks()
+        self.content_edited.emit()
 
     def _sync_history_buttons(self) -> None:
         doc = self.text_edit.document()

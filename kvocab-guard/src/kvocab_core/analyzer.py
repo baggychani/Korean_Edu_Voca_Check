@@ -8,7 +8,7 @@ from threading import local
 from sqlalchemy.orm import Session
 
 from kvocab_core.allowlist import get_allowlist_set
-from kvocab_core.config import INCLUDE_DRAFT_DATA, USABLE_REVIEW_STATUSES
+from kvocab_core.config import matching_review_statuses
 from kvocab_core.equivalent_forms import canonical_form
 from kvocab_core.matching import build_eojeol_match_keys, is_particle_lemma, split_eojeol
 from kvocab_core.models import Lesson, Lexeme, SurfaceForm
@@ -37,12 +37,9 @@ class LexemeIndex:
     def __init__(self, session: Session) -> None:
         self.by_norm_lemma: dict[str, Lexeme] = {}
         self.by_norm_surface: dict[str, Lexeme] = {}
-        q = session.query(Lexeme)
-        if not INCLUDE_DRAFT_DATA:
-            q = q.filter(Lexeme.review_status.in_(USABLE_REVIEW_STATUSES))
+        usable = matching_review_statuses()
+        q = session.query(Lexeme).filter(Lexeme.review_status.in_(usable))
         for lex in q.all():
-            if lex.review_status not in USABLE_REVIEW_STATUSES:
-                continue
             self.by_norm_lemma[lex.normalized_lemma] = lex
             content_key = _content_lookup_key(lex.lemma)
             if content_key and content_key != lex.normalized_lemma:
@@ -50,10 +47,9 @@ class LexemeIndex:
         for sf, lex in (
             session.query(SurfaceForm, Lexeme)
             .join(Lexeme, SurfaceForm.lexeme_id == Lexeme.id)
+            .filter(Lexeme.review_status.in_(usable))
             .all()
         ):
-            if lex.review_status not in USABLE_REVIEW_STATUSES:
-                continue
             self.by_norm_surface[sf.normalized_surface] = lex
 
     def lookup(self, norm: str) -> Lexeme | None:
@@ -118,8 +114,9 @@ def _thread_morph(use_morph: bool) -> KoreanMorphAnalyzer | RegexFallbackAnalyze
         if not hasattr(_morph_local, "fallback"):
             _morph_local.fallback = RegexFallbackAnalyzer()
         return _morph_local.fallback
+    # 스레드마다 독립 Kiwi 인스턴스 (공유 싱글톤은 병렬 tokenize에 안전하지 않음)
     if not hasattr(_morph_local, "morph"):
-        _morph_local.morph = KoreanMorphAnalyzer()
+        _morph_local.morph = KoreanMorphAnalyzer(shared=False)
     return _morph_local.morph
 
 

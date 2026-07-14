@@ -40,7 +40,9 @@ ignore = ["E501"]
 "tests/*" = ["B011"]
 
 [project.scripts]
-kvocab-guard = "kvocab_desktop.app:main"
+kvocab-guard        = "kvocab_desktop.app:main"
+kvocab-guard-react  = "kvocab_desktop.react_app:main"
+kvocab-sidecar      = "kvocab_core.cli_server:run"
 
 [tool.setuptools.packages.find]
 where = ["src"]

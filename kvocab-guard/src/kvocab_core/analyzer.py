@@ -72,7 +72,15 @@ def get_lexeme_index(session: Session) -> LexemeIndex:
 
 
 def invalidate_lexeme_index() -> None:
+    """LexemeIndex 캐시를 초기화한다.
+
+    DB seed 또는 XLSX import 후 반드시 호출해야 한다.
+    phrase key 빌드에 쓰이는 _morph_for_index 도 함께 초기화해
+    stale phrase 매칭을 방지한다.
+    """
+    global _morph_for_index
     _INDEX_CACHE.clear()
+    _morph_for_index = None
 
 
 def _content_lookup_key(lemma: str) -> str:
@@ -161,6 +169,8 @@ def _shift_issues(issues: list[Issue], offset: int, full_text: str) -> list[Issu
 def _sentence_at(text: str, start: int, end: int) -> str:
     start = max(0, min(start, len(text)))
     end = max(start, min(end, len(text)))
+    if start == end:
+        return ""
     left = max(text.rfind(ch, 0, start) for ch in _SENTENCE_BOUNDARY_CHARS)
     if end > 0 and text[end - 1] in _SENTENCE_BOUNDARY_CHARS:
         right = end

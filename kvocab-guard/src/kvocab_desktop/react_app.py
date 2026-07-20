@@ -1,26 +1,16 @@
 """react_app.py — KVocabGuard React + Tauri 진입점
 
-app.py  : PySide6 데스크톱 앱 진입점 (현행 유지)
-react_app.py : React + Tauri 앱을 위한 진입점
+app.py       → PySide6 데스크톱 (현행)
+react_app.py → React + Tauri 데스크톱 (마이그레이션 중)
 
-역할:
-    1. Python sidecar(kvocab_core.cli_server) 를 직접 실행하는 모드
-       → Tauri 가 sidecar 로 이 프로세스를 스폰하면 stdin/stdout JSON-RPC 루프로 진입
-    2. 개발 보조 모드 (--dev-server)
-       → Vite dev server 를 백그라운드에서 띄우고 기본 브라우저로 연다
-    3. 스모크 테스트 모드 (--smoke)
-       → Kiwi 형태소 분석기가 정상 동작하는지 확인 후 종료
+모드::
 
-사용 예시::
-
-    # Tauri sidecar (Rust 에서 Command::sidecar 로 실행):
-    python react_app.py
-
-    # 개발 UI 미리보기 (Vite dev server 실행 + 브라우저 오픈):
-    python react_app.py --dev-server
-
-    # 스모크 테스트:
-    python react_app.py --smoke
+    python react_app.py              # Tauri 데스크톱 창 (기본)
+    python react_app.py --tauri      # 위와 동일
+    python react_app.py --browser    # Vite만 + Chrome 미리보기
+    python react_app.py --dev-server # --browser 와 동일
+    python react_app.py --sidecar    # Tauri용 stdin/stdout JSON-RPC
+    python react_app.py --smoke      # Kiwi / cli_server 스모크 테스트
 """
 
 from __future__ import annotations
@@ -32,11 +22,11 @@ import webbrowser
 from pathlib import Path
 
 # ---------------------------------------------------------------------------
-# Import path bootstrap (python react_app.py 로 직접 실행 시)
+# Import path bootstrap (python -m / 직접 실행)
 # ---------------------------------------------------------------------------
 
+
 def _bootstrap_import_path() -> None:
-    """패키지 없이 직접 실행할 때 src/ 를 sys.path 에 추가한다."""
     if __package__:
         return
     src_root = Path(__file__).resolve().parents[1]
@@ -51,10 +41,9 @@ from kvocab_core.runtime_paths import configure_frozen_dll_paths, crash_log_path
 
 configure_frozen_dll_paths()
 
+UI_DIR = Path(__file__).resolve().parents[2] / "kvocab-ui"
+DEV_URL = "http://localhost:1420/"
 
-# ---------------------------------------------------------------------------
-# 공통 유틸
-# ---------------------------------------------------------------------------
 
 def _write_crash_log(exc: BaseException) -> Path:
     log_path = crash_log_path()
@@ -65,54 +54,171 @@ def _write_crash_log(exc: BaseException) -> Path:
     return log_path
 
 
+def _ensure_ui_dir() -> Path:
+    if not UI_DIR.exists():
+        print(f"[react_app] kvocab-ui 디렉토리를 찾을 수 없습니다: {UI_DIR}", file=sys.stderr)
+        sys.exit(1)
+    return UI_DIR
+
+
+def _npm_cmd(*args: str) -> list[str]:
+    """Windows 에서 npm.cmd 를 우선 사용한다."""
+    if sys.platform == "win32":
+        return ["npm.cmd", *args]
+    return ["npm", *args]
+
+
+def _run_npm(args: list[str], *, cwd: Path) -> int:
+    cmd = _npm_cmd(*args)
+    print(f"[react_app] {' '.join(cmd)}  (cwd={cwd})")
+    # shell=False + npm.cmd 가 Windows 에서 더 안정적
+    proc = subprocess.Popen(cmd, cwd=cwd)
+    try:
+        return proc.wait()
+    except KeyboardInterrupt:
+        proc.terminate()
+        try:
+            proc.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+        print("\n[react_app] 종료되었습니다.")
+        return 130
+
+
 # ---------------------------------------------------------------------------
-# 모드 1: sidecar (기본) — stdin/stdout JSON-RPC 루프
+# 모드: Vite + 브라우저
 # ---------------------------------------------------------------------------
+
+
+def _port_in_use(port: int = 1420) -> bool:
+    """Vite 가 host:false 일 때 ::1 만 listen 하는 경우도 잡는다."""
+    import socket  # noqa: PLC0415
+
+    targets: list[tuple[int, str]] = [
+        (socket.AF_INET, "127.0.0.1"),
+        (socket.AF_INET6, "::1"),
+    ]
+    for family, host in targets:
+        try:
+            with socket.socket(family, socket.SOCK_STREAM) as s:
+                s.settimeout(0.4)
+                if s.connect_ex((host, port)) == 0:
+                    return True
+        except OSError:
+            continue
+    return False
+
+
+def _open_browser(url: str = DEV_URL) -> None:
+    try:
+        webbrowser.open(url)
+    except Exception:
+        pass
+
+
+def run_dev_server() -> None:
+    """Vite 개발 서버를 띄우고 브라우저로 UI를 연다 (mock UI 미리보기)."""
+    ui_dir = _ensure_ui_dir()
+
+    # 이미 1420 이 떠 있으면 새 서버를 띄우지 않고 브라우저만 연다
+    if _port_in_use(1420):
+        print(f"[react_app] 포트 1420 이 이미 사용 중입니다 → 기존 서버로 연결")
+        print(f"[react_app] {DEV_URL}")
+        _open_browser()
+        print("[react_app] 브라우저를 열었습니다. (서버는 이미 실행 중)")
+        return
+
+    print(f"[react_app] Vite 개발 서버 시작 → {DEV_URL}")
+    print("[react_app] 브라우저가 안 열리면 위 주소를 직접 여세요.")
+
+    import threading  # noqa: PLC0415
+
+    def _open() -> None:
+        import time  # noqa: PLC0415
+        time.sleep(1.2)
+        _open_browser()
+
+    threading.Thread(target=_open, daemon=True).start()
+    code = _run_npm(["run", "dev"], cwd=ui_dir)
+    if code not in (0, 130):
+        sys.exit(code)
+
+
+# ---------------------------------------------------------------------------
+# 모드: Tauri 데스크톱
+# ---------------------------------------------------------------------------
+
+
+def _free_port(port: int = 1420) -> None:
+    """Windows 에서 포트를 점유한 프로세스를 종료한다 (Tauri 재실행용)."""
+    if sys.platform != "win32":
+        return
+    try:
+        out = subprocess.check_output(
+            ["netstat", "-ano"],
+            text=True,
+            encoding="utf-8",
+            errors="ignore",
+        )
+    except (OSError, subprocess.CalledProcessError):
+        return
+
+    pids: set[int] = set()
+    needle = f":{port}"
+    for line in out.splitlines():
+        if needle not in line or "LISTENING" not in line:
+            continue
+        parts = line.split()
+        if not parts:
+            continue
+        try:
+            pids.add(int(parts[-1]))
+        except ValueError:
+            continue
+
+    for pid in pids:
+        if pid <= 0:
+            continue
+        print(f"[react_app] 포트 {port} 점유 프로세스 종료 (PID {pid})")
+        subprocess.run(
+            ["taskkill", "/PID", str(pid), "/F"],
+            capture_output=True,
+            check=False,
+        )
+
+
+def run_tauri_dev() -> None:
+    """Tauri 데스크톱 GUI 창을 실행한다 (Node + Rust 툴체인 필요)."""
+    ui_dir = _ensure_ui_dir()
+    if _port_in_use(1420):
+        print("[react_app] 포트 1420 이 사용 중이라 기존 프로세스를 정리합니다…")
+        _free_port(1420)
+        import time  # noqa: PLC0415
+        time.sleep(0.6)
+    print("[react_app] Tauri 데스크톱 창 실행 중…")
+    print("[react_app] (브라우저가 아니라 프로그램 창이 열립니다)")
+    code = _run_npm(["run", "tauri", "dev"], cwd=ui_dir)
+    if code not in (0, 130):
+        sys.exit(code)
+
+
+# ---------------------------------------------------------------------------
+# 모드: sidecar JSON-RPC
+# ---------------------------------------------------------------------------
+
 
 def run_sidecar() -> None:
-    """Tauri sidecar 로서 동작한다.
-
-    stdin 으로 JSON 요청을 줄 단위로 받고 stdout 으로 JSON 응답을 내보낸다.
-    EOF 수신 시 정상 종료한다.
-    """
+    """Tauri sidecar — stdin JSON 요청 / stdout JSON 응답."""
     from kvocab_core.cli_server import run  # noqa: PLC0415
     run()
 
 
 # ---------------------------------------------------------------------------
-# 모드 2: --dev-server — Vite dev server + 브라우저
+# 모드: smoke
 # ---------------------------------------------------------------------------
 
-def run_dev_server() -> None:
-    """kvocab-ui Tauri 데스크톱 GUI 개발 서버를 실행한다.
-
-    npm 과 Node.js, Rust 툴체인이 설치돼 있어야 합니다.
-    """
-    ui_dir = Path(__file__).resolve().parents[2] / "kvocab-ui"
-    if not ui_dir.exists():
-        print(f"[react_app] kvocab-ui 디렉토리를 찾을 수 없습니다: {ui_dir}", file=sys.stderr)
-        sys.exit(1)
-
-    print("[react_app] Tauri 데스크톱 GUI 창 실행 중…")
-    proc = subprocess.Popen(
-        ["npm", "run", "tauri", "dev"],
-        cwd=ui_dir,
-        shell=sys.platform == "win32",
-    )
-
-    try:
-        proc.wait()
-    except KeyboardInterrupt:
-        proc.terminate()
-        print("\n[react_app] GUI 앱이 종료되었습니다.")
-
-
-# ---------------------------------------------------------------------------
-# 모드 3: --smoke — 형태소 분석기 스모크 테스트
-# ---------------------------------------------------------------------------
 
 def run_smoke() -> None:
-    """Kiwi 형태소 분석기와 코어 로직이 정상 동작하는지 확인한다."""
     from kvocab_core.morph import KoreanMorphAnalyzer  # noqa: PLC0415
 
     analyzer = KoreanMorphAnalyzer()
@@ -126,24 +232,26 @@ def run_smoke() -> None:
 
     print(f"[smoke] OK — backend={analyzer.backend_name}, lemmas sample={lemmas[:5]}")
 
-    # cli_server ping 테스트
     import json  # noqa: PLC0415
-
     from kvocab_core.cli_server import _dispatch  # noqa: PLC0415, SLF001
 
     resp = json.loads(_dispatch({"id": 1, "method": "ping", "params": {}}))
     assert resp["ok"] is True and resp["data"] == "pong", f"ping failed: {resp}"
     print(f"[smoke] cli_server ping: {resp}")
-
-    print("[smoke] 모든 검사 통과 ✅")
+    print("[smoke] 모든 검사 통과")
 
 
 # ---------------------------------------------------------------------------
 # main
 # ---------------------------------------------------------------------------
 
+
 def main() -> None:
     args = set(sys.argv[1:])
+
+    if "--help" in args or "-h" in args:
+        print(__doc__)
+        return
 
     if "--smoke" in args:
         run_smoke()
@@ -153,8 +261,13 @@ def main() -> None:
         run_sidecar()
         return
 
-    # 기본값: 브라우저와 Vite 개발 서버를 즉시 띄운다
-    run_dev_server()
+    # Chrome 미리보기는 명시할 때만
+    if "--browser" in args or "--dev-server" in args:
+        run_dev_server()
+        return
+
+    # 기본 / --tauri → 데스크톱 창
+    run_tauri_dev()
 
 
 if __name__ == "__main__":
